@@ -15,23 +15,43 @@ args=$@
 program=$2	# file or program
 # TODO search if program is not a exact match (for some args)
 
-# does not work because of different branches (that might be installed at the same time)
-flatpakList=$(flatpak list --columns=application)
-echo $flatpakList
+flatpakArr=()	# all installed flatpak in the format: appid/arch/branch
+flatpakRawList=$(flatpak list --columns=app,arch,branch)
+IFS=$'\n'
+while read -r line; do
+	rowArr+=("$line")
+done <<< "${flatpakRawList}"
+for row in ${rowArr[@]}; do
+	IFS=$'\t' read -ra appArr <<< ${row}
+	flatpakArr+=("${appArr[0]}/${appArr[1]}/${appArr[2]}")
+done
 
 
 case "$1" in
 	-Q)
 		if [ -z "${program}" ]; then
-			for appid in ${flatpakList}; do
-				# TODO deal with branches
-				flatpakBr=$(flatpak list --columns=application,branch | grep ${appid})
-				#echo ${flatpakBr}
-				#version=$(flatpak info ${appid} | grep Version | awk '{print $2}')
-				#echo -e "${bold}${appid} ${green}${version}${normal}"
+			for app in ${flatpakArr[@]}; do
+				appVersion=$(flatpak info ${app} | grep Version | awk -F': ' '{print $2}')
+				appBranch=$(flatpak info ${app} | grep Version | awk -F': ' '{print $2}')
+				appID="$(echo ${app} | awk -F'/' '{print $1}')"
+				appArch=$(echo ${app} | awk -F'/' '{print $2}')
+				appBranch=$(echo ${app} | awk -F'/' '{print $3}')
+				appName=$(flatpak list --columns=name,app,arch,branch,app | grep "${appID}	" | grep "${appArch}	" | grep "${appBranch}	" | awk -F'\t' '{print $1}')
+				[ -z "$appVersion" ] && appVersion="?"
+				echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
 			done
 		else
-			echo ${appid}
+			preapp=$(flatpak --columns=app,branch search ${program} | awk -F'\n' '{print $1}')
+			IFS=$'\t' read -ra appArr <<< ${preapp}
+			app="${appArr[0]}//${appArr[1]}"
+			appVersion=$(flatpak info ${app} | grep Version | awk -F': ' '{print $2}')
+			appBranch=$(flatpak info ${app} | grep Version | awk -F': ' '{print $2}')
+			appID="$(echo ${app} | awk -F'/' '{print $1}')"
+			appArch=$(echo ${app} | awk -F'/' '{print $2}')
+			appBranch=$(echo ${app} | awk -F'/' '{print $3}')
+			appName=$(flatpak list --columns=name,app,arch,branch,app | grep "${appID}	" | grep "${appArch}	" | grep "${appBranch}	" | awk -F'\t' '{print $1}')
+			[ -z "$appVersion" ] && appVersion="?"
+			echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
 		fi
 		;;
 	-Q*) ;;
