@@ -27,7 +27,7 @@ program=$2	# file or program given
 
 
 ## === FUNCTIONS ===
-# returns the given date into the format that pacman normally uses
+# returns the date given with $1 with the format that pacman normally uses
 convertDate() {
 	local dateIn=$1
 	#echo "${dateIn}"	# only for debuging
