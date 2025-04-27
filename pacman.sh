@@ -3,11 +3,12 @@
 # (by egnrse)
 
 ## === SETTINGS ===
-SPEED=""	#if not empty: skip fields that would take some more time
+SPEED=""		# if not empty: skip fields that would take some more time
+SPACER="  "		# spacer between multiple entries (for -Qi)
 skippedMsg="[skipped]"	# message for files skipped because for $SPEED
 notImplemented="[not implemented]"
+appNOTLOCAL="[not found locally]"	# information that needs to be fetch from eg. flathub
 appTODO="[todo]"
-appNOTLOCAL="[not found locally]"
 
 
 ## === CONSTANTS ===
@@ -18,13 +19,15 @@ green="\e[32m"
 args=$@
 program=$2	# file or program given
 
+
 ## === PACMAN ===
 # execute the command normally
 #pacman ${args}	#dev
 # TODO wrap output/error
 
-## === FUCNTIONS ===
-# convert a given date format to the format that pacman normally uses and return it
+
+## === FUNCTIONS ===
+# returns the given date into the format that pacman normally uses
 convertDate() {
 	local dateIn=$1
 	#echo "${dateIn}"	# only for debuging
@@ -51,15 +54,18 @@ initArr() {
 	done
 }
 
-# returns an extended appID (or more) if there are matches with $1 in the flatpakArr
-searchAppID() {
-	echo $1 #dev
+# returns extended appIDs, if there are matches with $1 in the flatpakArr (returns to programArr as an array of matches)
+searchAppID_local() {
 	local searchL=$1
 	# detect empty input and grep in this case for everything
 	if [ -z "$searchL" ]; then searchL="."; fi
-	if [ -z "flatpakArr[@]" ]; then echo "WARNING (searchAppID): $flatpakArr is empty, this function assumes flatpakArr to be filled"; fi;
+	if [ -z "flatpakArr[@]" ]; then echo "WARNING (searchAppID_local): \$flatpakArr is empty, this function assumes \$flatpakArr to be filled"; fi;
+
+	programArr=()
 	for row in ${flatpakArr[@]}; do
-		echo ${row} | grep -i $searchL
+		if [ -n "$(echo ${row} | grep -i $searchL)" ]; then
+			programArr+=(${row})
+		fi
 	done
 }
 
@@ -80,7 +86,7 @@ getAppInfo() {
 	appVersion=${appArr[3]}
 	([ -z "$appVersion" ] || [[ "$appVersion" == "$appID" ]] ) && appVersion="?"
 }
-# get all fields but slower than getAppInfo()
+# get all availabe info fields, but slower than getAppInfo()
 getAppInfoFull() {
 	local appL=$1
 	appInfo=$(flatpak info ${appL})
@@ -111,17 +117,15 @@ getAppInfoFull() {
 		appUrl="Installed from '${appOrigin}'"
 	fi
 	if [ ${SPEED} ]; then
-		# try here, before giving up
-		local globalFlatpakPath="/var/lib/flatpak/app"
-		if [ $(ls ${globalFlatpakPath}) ]; then
-			local preDate="$(stat ${globalFlatpakPath}/${appL}) | grep Modify | awk -F': ' '{print $2}')"
-			appInstallDate=$(convertDate ${preDate})
-		else
-			appInstallDate="${skippedMsg}"
-		fi
+		appInstallDate="${skippedMsg}"
+		appProvides="${skippedMsg}"
 	else
-		local preDate="$(stat $(flatpak info --show-location ${appL}) | grep Modify | awk -F': ' '{print $2}')"
+		appLocation=$(flatpak info --show-location ${appL})
+		local preDate="$(stat ${appLocation} | grep Modify | awk -F': ' '{print $2}')"
 		appInstallDate=$(convertDate ${preDate})
+
+		appMetadata=$(flatpak info --show-metadata ${appL})
+		appProvides=$(echo "$appMetadata" | grep command= | awk -F'=' '{print $2}')
 	fi
 }
 
@@ -146,11 +150,12 @@ printAppInfo() {
 	if [ -z "${appCollection}" ]; then appCollection="$appNONE"; fi
 	echo -e "${bold}Groups		:${normal} $appCollection"	#change?
 	
-	# TODO: how to get this?
-	echo -e "${bold}Provides	:${normal} $appTODO"
+	if [ -z "$appProvides" ]; then appProvides="$appNONE"; fi
+	echo -e "${bold}Provides	:${normal} $appProvides"
 
-	if [ -z "${appRuntime}" ]; then appRuntime="$appNONE"; fi
-	echo -e "${bold}Depends On	:${normal} $appRuntime"
+	local appDepends="flatpak"
+	if [ -n "${appRuntime}" ]; then appDepends+="${SPACER}${appRuntime}"; fi
+	echo -e "${bold}Depends On	:${normal} $appDepends"
 
 	echo -e "${bold}Optional Deps	:${normal} $notImplemented"
 	
@@ -181,42 +186,41 @@ printAppInfo() {
 
 ## === START ===
 
-# search for an extended appID (and conert program to this format)
-#program=$(searchAppID $program)
-
 flatpakArr=()	# all installed flatpaks in the format: appid/arch/branch (extended appID)
 initArr;
 flatpakFullList="" # big list of the installed flatpak
 
+# get the extended appID for the provided string (returns to programArr)
+searchAppID_local ${program}
+
 case "$1" in
 	-Q)
-		if [ -z "${program}" ]; then
-			for app in ${flatpakArr[@]}; do
-				getAppInfo ${app};
-				echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
-			done
-		else
-			preapp=$(flatpak --columns=app,branch search ${program} | awk -F'\n' '{print $1}')
-			IFS=$'\t' read -ra appArr <<< ${preapp}
-			app="${appArr[0]}//${appArr[1]}"
+		for app in ${programArr[@]}; do
 			getAppInfo ${app};
 			echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
-		fi
+		done
+		
 		;;
 	-Q*) 
 		# Qi option
 		if [[ "$1" == *"i"* ]]; then
-			if [ -n "$program" ]; then
-				printAppInfo ${program}
-			else
-				echo "note: flatpaks not shown (must give a program)"
-			fi
+			for app in ${programArr[@]}; do
+				printAppInfo ${app}
+				echo ""
+			done
 		fi
-			;;
+		;;
 	-S*)
 		#dev
-		#searchAppID ${program}
+		# old (slower) variant
+	#	preapp=$(flatpak --columns=app,branch search ${programArr[0]} | awk -F'\n' '{print $1}')
+	#	IFS=$'\t' read -ra appArr <<< ${preapp}
+	#	app="${appArr[0]}//${appArr[1]}"
+	#	getAppInfo ${app};
+	#	echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
 		;;
-	-R*)	;;
-	-F*)	;;
+	-R*)
+		;;
+	-F*)
+		;;
 esac
