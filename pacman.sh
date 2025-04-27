@@ -92,6 +92,7 @@ getAppInfoFull() {
 	appInfo=$(flatpak info ${appL})
 	appName=$(echo "${appInfo}" | perl -0777 -ne 'print $1 if /.(.*?) - /s')
 	appDescription=$(echo "${appInfo}" | perl -0777 -ne 'print $1 if / - (.*?)ID:/s')
+	#TODO fix Description: space missing when unwrapping line
 	appDescription=$(awk 'BEGIN{ORS=""} {print $0}' <<< "$appDescription")	# strip trailing newlines
 
 	appID=$(echo "${appInfo}" | grep ID: | awk -F': ' '{print $2}')
@@ -142,6 +143,7 @@ printAppInfo() {
 	if [ -n "$appName" ]; then appNameL="($appName)"; fi
 	echo -e "${bold}Name		:${normal} $appID $appNameL"
 	echo -e "${bold}Version		:${normal} $appVersion"
+	#TODO graceful wraparound
 	echo -e "${bold}Description	:${normal} $appDescription"
 	echo -e "${bold}Architecture	:${normal} $appArch"
 	echo -e "${bold}URL		:${normal} $appUrl"
@@ -190,7 +192,7 @@ flatpakArr=()	# all installed flatpaks in the format: appid/arch/branch (extende
 initArr;
 flatpakFullList="" # big list of the installed flatpak
 
-# get the extended appID for the provided string (returns to programArr)
+# get the extended appID for the provided string (returns the result to programArr)
 searchAppID_local ${program}
 
 case "$1" in
