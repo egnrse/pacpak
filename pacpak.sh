@@ -3,8 +3,13 @@
 # (by egnrse)
 
 ## === SETTINGS ===
-SPEED=""		# if not empty: skip fields that would take some more time
-SPACER="  "		# spacer between multiple entries (for -Qi)
+# activate, by setting to a non empty value
+WRAP="T"			# forward commands to pacman and handle its outputs (WIP)
+SPEED=""		# skip fields that would take some more time
+COLOR="T"			# show colors
+
+
+# Qi
 skippedMsg="[skipped]"	# message for files skipped because for $SPEED
 notImplemented="[not implemented]"
 appNOTLOCAL="[not found locally]"	# information that needs to be fetch from eg. flathub
@@ -12,18 +17,56 @@ appTODO="[todo]"
 
 
 ## === CONSTANTS ===
+VERSION="0.0.1"
+SPACER="  "			# spacer between multiple entries (for -Qi)
+SPACE_VERSION="                      "	# spacer for the version display (-V)
+
 normal="\e[0m"
 bold="\e[1m"
 green="\e[32m"
+red="\e[31m"
+
 
 args=$@
 program=$2	# file or program given
 
 
+# errors
+err_pacNotFound="${red}${bold}error:${normal} package '${program}' was not found"
+
+
 ## === PACMAN ===
-# execute the command normally
-#pacman ${args}	#dev
-# TODO wrap output/error
+## functions to handle/wrap the output from pacman
+pacOut=""	# stores all the output from pacman
+handleOut() {
+	while IFS= read -r line; do
+		# ignore some errors
+		if $(echo "$line" | grep "package '${program}' was not found">/dev/null); then
+			:
+		else
+			pacOut+="$line\n"
+			echo -e "$line"
+		fi
+	done
+}
+pacErr=""
+handleErr() {
+	while IFS= read -r line; do
+		pacErr+="$line\n"
+		echo -e "$line"
+	done
+}
+
+if [ -n "$WRAP" ]; then
+	# execute the command normally
+	if [ -n "$COLOR" ]; then
+		pacColor="--color always"
+	fi
+	pacman ${pacColor} ${args} > >(handleOut) 2> >(handleErr)
+	pacReturn="$?"
+else
+	pacReturn="1"
+fi
 
 
 ## === FUNCTIONS ===
@@ -197,15 +240,26 @@ searchAppID_local ${program}
 
 case "$1" in
 	-Q)
+		if [ -z "${programArr[@]}" ] && [[ $pacReturn = 1 ]]; then
+			echo -e ${err_pacNotFound}
+			exit 1
+		fi
 		for app in ${programArr[@]}; do
 			getAppInfo ${app};
-			echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
+			if [ -n "$COLOR" ]; then
+				echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
+			else
+				echo -e "${appID} (${appName}) ${appVersion} (${appBranch})"
+			fi
 		done
-		
 		;;
 	-Q*) 
 		# Qi option
 		if [[ "$1" == *"i"* ]]; then
+			if [ -z "${programArr[@]}" ] && [[ $pacReturn = 1 ]]; then
+				echo -e ${err_pacNotFound}
+				exit 1
+			fi
 			for app in ${programArr[@]}; do
 				printAppInfo ${app}
 				echo ""
@@ -224,5 +278,13 @@ case "$1" in
 	-R*)
 		;;
 	-F*)
+		;;
+	-V*|--version)
+		if [ -n "$WRAP" ]; then
+			echo "${SPACE_VERSION} ---"
+			echo "${SPACE_VERSION} "
+		fi
+		echo "${SPACE_VERSION} Pacpak v$VERSION - MIT License"
+		echo "${SPACE_VERSION} Copyright (C) 2025 Elia Nitsche"
 		;;
 esac

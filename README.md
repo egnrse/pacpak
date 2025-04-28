@@ -11,6 +11,7 @@ implemented:
 - S\[s|u\] (search packages|upgrade)
 - Si    (package information (from online?))
 - R\[s|n\] (remove: also dependecies|remove config files)
+- deal with fullnames of operations (eg. --query)
 - cache for `flatpak list|info` (paths?) to speed things up
 
 - (and maybe rewrite this in rust or c or sth, to gain much needed speed ups [might be having to little time for that though])  
@@ -28,6 +29,7 @@ info/list files/owns file
 `flatpak search`    (very slow)  
 #### F?
 not sure yet, I dont really use it  
+#### V
 
 ### upstream?
 I think the flatpak cli can be better for interacting with a script, what is needed?  
