@@ -289,6 +289,12 @@ case "$1" in
 			done
 		fi
 		;;
+	-S)
+		# ask if flatpak or pacman (or prefer pacman?, setting?)
+		# prefer/only flatpak/pacman options (args?)
+		# pacman -S (catch the above one?, read does not work through a pipe?)
+		# flatpak install $program
+		;;
 	-S*)
 		#dev
 		# old (slower) variant
