@@ -2,8 +2,18 @@
 A pacman wrapper to manage installed flatpaks with pacman. This is still starting out and more of a proof of concept than a fully functional program.  
 
 ## TODO
-There is lots I want to add. (and maybe rewrite this in rust or c or sth, to gain much needed speed ups)  
-PR/issues are very welcome.  
+There is lots I want to add. PR/issues are very welcome.  
+implemented:  
+- Qo (file owned by what package)
+- Ql (list package files)
+- Q\[u|t|s|\] (can be upgraded|orphans|search names/descriptions)
+- S  (install)
+- S\[s|u\] (search packages|upgrade)
+- Si    (package information (from online?))
+- R\[s|n\] (remove: also dependecies|remove config files)
+- cache for `flatpak list|info` (paths?) to speed things up
+
+- (and maybe rewrite this in rust or c or sth, to gain much needed speed ups [might be having to little time for that though])  
 
 I want to handle:
 #### Q\[ilo\]
