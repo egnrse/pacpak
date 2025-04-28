@@ -10,7 +10,7 @@ COLOR="T"			# show colors
 
 
 # Qi
-skippedMsg="[skipped]"	# message for files skipped because for $SPEED
+skippedMsg="[skipped]"	# message for output-fields that where skipped, because of $SPEED
 notImplemented="[not implemented]"
 appNOTLOCAL="[not found locally]"	# information that needs to be fetch from eg. flathub
 appTODO="[todo]"
@@ -20,6 +20,8 @@ appTODO="[todo]"
 VERSION="0.0.1"
 SPACER="  "			# spacer between multiple entries (for -Qi)
 SPACE_VERSION="                      "	# spacer for the version display (-V)
+FLAT_PREFIX="flat:"		# prefix before flatpak provides
+
 
 normal="\e[0m"
 bold="\e[1m"
@@ -58,14 +60,29 @@ handleErr() {
 }
 
 if [ -n "$WRAP" ]; then
-	# execute the command normally
+	fifoOut=$(mktemp -u)
+	mkfifo "$fifoOut"
+
+	handleOut < "$fifoOut" &
+	handleOut_PID=$!
+
+	# execute the command normally in pacman
 	if [ -n "$COLOR" ]; then
 		pacColor="--color always"
+	else
+		pacColor=""
 	fi
-	pacman ${pacColor} ${args} > >(handleOut) 2> >(handleErr)
+	pacman ${pacColor} ${args} >$fifoOut 2> >(handleErr)
 	pacReturn="$?"
+
+	# close fifoOut
+	exec 3>$fifoOut
+	exec 3>&-
+
+	wait $handleOut_PID		# wait for handleOut to finish
+	rm -f "$fifoOut"		# cleanup
 else
-	pacReturn="1"
+	pacReturn="1"	# return value of pacman (1 here so that pacpak shows eg. not found errors)
 fi
 
 
@@ -154,12 +171,16 @@ getAppInfoFull() {
 	appBuildDate=$(convertDate ${appBuildDate})
 
 	## Custom Fields ##
-	if [[ "$appOrigin" == "flathub" ]]; then
+	if [[ "$appOrigin" == "flathub" ]] && [ -n "${appRuntime}" ]; then
 		#TODO get source url if availabe (on flathub)?
 		appUrl="https://flathub.org/apps/${appID}"
 	else
 		appUrl="Installed from '${appOrigin}'"
 	fi
+
+	appDepends="flatpak"
+	appDepends+=" ${appRuntime}"
+
 	if [ ${SPEED} ]; then
 		appInstallDate="${skippedMsg}"
 		appProvides="${skippedMsg}"
@@ -169,7 +190,14 @@ getAppInfoFull() {
 		appInstallDate=$(convertDate ${preDate})
 
 		appMetadata=$(flatpak info --show-metadata ${appL})
-		appProvides=$(echo "$appMetadata" | grep command= | awk -F'=' '{print $2}')
+		if [ -z "$appRuntime" ]; then
+			# this is a runtime
+			appProvides="$app"	# return the extended appID
+		else
+			# this is an app
+			appProvides="${FLAT_PREFIX}"
+			appProvides+=$(echo "$appMetadata" | grep command= | awk -F'=' '{print $2}')
+		fi
 	fi
 }
 
@@ -198,32 +226,27 @@ printAppInfo() {
 	if [ -z "$appProvides" ]; then appProvides="$appNONE"; fi
 	echo -e "${bold}Provides	:${normal} $appProvides"
 
-	local appDepends="flatpak"
-	if [ -n "${appRuntime}" ]; then appDepends+="${SPACER}${appRuntime}"; fi
 	echo -e "${bold}Depends On	:${normal} $appDepends"
-
-	echo -e "${bold}Optional Deps	:${normal} $notImplemented"
+	echo -e "${bold}Optional Deps	:${normal} $appNONE"
 	
 	# if it needs a runtime it is an app?
 	if [ -n "${appRuntime}" ]; then appRequired="$appNONE"; fi
 	if [ -z "${appRequired}" ]; then appRequired=$appNONE; fi;
 	echo -e "${bold}Required By	:${normal} $appRequired"
 
-	echo -e "${bold}Optional For	:${normal} $notImplemented"
+	echo -e "${bold}Optional For	:${normal} $appNONE"
 	echo -e "${bold}Conflicts With	:${normal} $notImplemented"
 	echo -e "${bold}Replaces	:${normal} $notImplemented"
 	echo -e "${bold}Installed Size	:${normal} $appInstallSize"
 	# how to get packager? (flathub directly?/using ostree)
-	echo -e "${bold}Packager	:${normal} $appNOTLOCAL"
-	echo -e "${bold}Build Date	:${normal} $appBuildDate"	# change format?
-	echo -e "${bold}Install Date	:${normal} $appInstallDate"
+	echo -e "${bold}Packager	:${normal} Unkown Packager"	#fetch from flathub?
+	echo -e "${bold}Build Date	:${normal} $appBuildDate"
+	echo -e "${bold}Install Date	:${normal} $appInstallDate"	# modify date of app folder
 
-	if [ -z "" ]; then
-		echo -e "${bold}Install Reason	:${normal} $appTODO"
-	else
-		# check if it is under flatpak list --app
-		echo -e "${bold}Install Reason	:${normal} Explicitly installed"
+	if [ -z "$appRuntime" ]; then
 		echo -e "${bold}Install Reason	:${normal} Installed as a dependency for another package"
+	else
+		echo -e "${bold}Install Reason	:${normal} Explicitly installed"
 	fi
 	echo -e "${bold}Install Script	:${normal} $notImplemented"
 	echo -e "${bold}Validated By	:${normal} $notImplemented"
@@ -231,7 +254,7 @@ printAppInfo() {
 
 ## === START ===
 
-flatpakArr=()	# all installed flatpaks in the format: appid/arch/branch (extended appID)
+flatpakArr=()	# all installed flatpaks in the format: appid/arch/branch (called extended appID)
 initArr;
 flatpakFullList="" # big list of the installed flatpak
 
@@ -240,14 +263,14 @@ searchAppID_local ${program}
 
 case "$1" in
 	-Q)
-		if [ -z "${programArr[@]}" ] && [[ $pacReturn = 1 ]]; then
+		if [ -z "${programArr[*]}" ] && [[ $pacReturn = 1 ]]; then
 			echo -e ${err_pacNotFound}
 			exit 1
 		fi
 		for app in ${programArr[@]}; do
 			getAppInfo ${app};
 			if [ -n "$COLOR" ]; then
-				echo -e "${bold}${appID} (${appName}) ${green}${appVersion} (${appBranch})${normal}"
+				echo -e "${bold}${appID} ${normal}(${appName}) ${bold}${green}${appVersion} ${normal}(${appBranch})${normal}"
 			else
 				echo -e "${appID} (${appName}) ${appVersion} (${appBranch})"
 			fi
@@ -256,7 +279,7 @@ case "$1" in
 	-Q*) 
 		# Qi option
 		if [[ "$1" == *"i"* ]]; then
-			if [ -z "${programArr[@]}" ] && [[ $pacReturn = 1 ]]; then
+			if [ -z "${programArr[*]}" ] && [[ $pacReturn = 1 ]]; then
 				echo -e ${err_pacNotFound}
 				exit 1
 			fi
