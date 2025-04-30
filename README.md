@@ -3,10 +3,17 @@
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/egnrse/pacpak/main)](https://github.com/egnrse/pacpak/commits/main)
 [![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/egnrse/pacpak?label=version)](https://github.com/egnrse/pacpak/releases)
 
-A pacman wrapper to manage installed flatpaks with pacman. This is still starting out and more of a proof of concept than a fully functional program.  
+A pacman wrapper to manage installed flatpaks with pacman. This is still starting out.  
 
 ## Install
-For right now, just put `pacpak.sh` into your path as `pacpak` and make it executable.  
+Build using cargo (in the root directory of this project):
+```bash
+export CARGO_TARGET_DIR=target
+cargo build --locked
+```
+Install either using cargo or copy `./target/debug/pacpak` into your path manually.
+
+To install the (deprecated) bash branch, just put `pacpak.sh` into your path as `pacpak` and make it executable.  
 
 There might also be packages for you:
 
@@ -31,7 +38,7 @@ to implement:
 - cache for `flatpak list|info` (paths?) to speed things up
 - some more tricky Qi-fields
 
-- (and maybe rewrite this in rust or c or sth, to gain much needed speed ups [might be having to little time for that though])  
+- (and maybe rewrite this in rust or c or sth, to gain much needed speed ups [might be having to little time for that though])(on its way)  
 
 I want to handle:
 #### Q\[ilo\]
