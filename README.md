@@ -5,6 +5,8 @@
 
 A pacman wrapper to manage installed flatpaks with pacman. This is still starting out and more of a proof of concept than a fully functional program.  
 
+(I am currently rewriting this in rust. Look at the other branch if interested.)
+
 ## Install
 For right now, just put `pacpak.sh` into your path as `pacpak` and make it executable.  
 
