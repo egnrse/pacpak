@@ -10,6 +10,7 @@ pub struct FlatpakApp {
 	/// extended app id in the format: `appID/arch[itecture]/branch`
 	pub extid: String,
 	pub name: String,
+	pub description: String,
 	/// appID (in reverse dns form)
 	pub id: String,
 	/// architecture
@@ -28,13 +29,14 @@ pub struct FlatpakApp {
 	pub parent: String,
 	pub subject: String,
 	pub build_date: String,
-
+	
 	// extra fields
 	pub install_date: String,
 	pub location: String,
 	pub url: String,
 	pub provides: String,
 	pub packager: String,
+	pub depends: String,
 	//pub v: String,
 }
 
@@ -88,7 +90,7 @@ impl FlatpakMeta {
 	}
 	
 	/// get more detailed infos about a (flatpak) app
-	pub fn get_app_info(&mut self, app: String) -> io::Result<&FlatpakApp> {	//dev: include strArr?
+	pub fn get_app_info(&mut self, idx: usize) -> io::Result<&FlatpakApp> {	//dev: include strArr?
 		if self.list_full.is_empty() {
 			let flatpak_list_raw = Command::new("flatpak")
 				.args(["list", "--columns=name,application,arch,branch,version,application"])
@@ -98,50 +100,23 @@ impl FlatpakMeta {
 			}
 			self.list_full = String::from_utf8_lossy(&flatpak_list_raw.stdout).into();
 		}
+		
+		// dev
+		//let searchterms = [&self.apps[idx].id, &self.apps[idx].arch, &self.apps[idx].branch];
+		//let matching: Vec<&str> = self.list_full
+		//	.lines()
+		//	.filter(|line| searchterms.iter().all(|k| line.contains(k)))
+		//	.collect();
+		//println!("{:?}", matching);
+
 		//dev: write the fields into the correct self.apps spots 
 		
 		//for app in &mut apps {
 		//	app.extid = format!("{}/{}/{}", app.id, app.arch, app.branch);
 		//}
 		//self.apps = apps;
-		//Ok(&self.apps)
-		Ok(&self.apps[0])
+		
+		Ok(&self.apps[idx])
 	}
-}
-
-
-/// get some basic infos from all installed flatpaks (extid, id, arch, branch, origin)
-#[deprecated]
-pub fn get_flatpak_apps() -> io::Result<Vec<FlatpakApp>> {
-	let flatpak_list_raw = Command::new("flatpak")
-		.args(["list", "--columns=application,arch,branch,origin"])
-		.output()?;
-	if !flatpak_list_raw.status.success() {
-		return Err(io::Error::new(io::ErrorKind::Other, "command: 'flatpak list' failed")); //dev
-	}
-	let flatpak_list_str = String::from_utf8_lossy(&flatpak_list_raw.stdout);
-	let mut apps: Vec<FlatpakApp> = flatpak_list_str
-		.lines()
-		.filter_map(|line| {
-			let columns: Vec<&str> = line.split('\t').collect();
-			if columns.len() == 4 {
-				Some(FlatpakApp {
-					id: columns[0].into(),
-					arch: columns[1].into(),
-					branch: columns[2].into(),
-					origin: columns[3].into(),
-					..Default::default()
-				})
-			} else {
-				None
-			}
-		})
-		.collect();
-
-	for app in &mut apps {
-		app.extid = format!("{}/{}/{}", app.id, app.arch, app.branch);
-	}
-
-	Ok(apps)
 }
 

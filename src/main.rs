@@ -8,7 +8,7 @@ use colored::Colorize;	// format output strings (for the terminal)
 use std::process::exit; // exit with an error
 
 mod flatpak;
-use flatpak::FlatpakMeta;
+use flatpak::{FlatpakMeta, FlatpakApp};
 
 
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -44,6 +44,8 @@ mod messages {
 	pub const SKIPPED: &str = "[skipped]";
 	/// field not implemented
 	pub const NOT_IMPLEMENTED: &str = "[not Implemented]";
+	/// field not implemented
+	pub const NONE: &str = "None";
 	/// help/usage message
 	pub const HELP_USAGE: &str = indoc! {r#"
 		usage: pacpak <operation> [...]
@@ -115,6 +117,37 @@ struct Cli {
 }
 
 
+///	outputs text similar to `pacman -Qi`
+fn print_app_info(app: &FlatpakApp) {
+	let mut name = String::new();
+	if !app.name.is_empty() {
+		name = format!("({})",app.name)
+	}
+	println!("{} {} {}", "Name		:".bold(),app.id, name);
+	println!("{} {}", "Version		:".bold(),app.version);
+	println!("{} {}", "Description	:".bold(),app.description);
+	println!("{} {}", "Architecture	:".bold(),app.arch);
+	println!("{} {}", "URL		:".bold(),app.url);
+	println!("{} {}", "Licenses	:".bold(),app.license);
+	println!("{} {}", "Groups		:".bold(),app.collection);
+	println!("{} {}", "Provides	:".bold(),app.provides);
+	println!("{} {}", "Depends On	:".bold(),app.depends);
+	println!("{} {}", "Optional Deps	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Required By	:".bold(),messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Optional For	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Conflicts With	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Replaces	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Installed Size	:".bold(),app.install_size);
+	println!("{} {}", "Packager	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Build Date	:".bold(),app.build_date);
+	println!("{} {}", "Install Date	:".bold(),app.install_date);
+	println!("{} {}", "Install Reason	:".bold(),messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Install Script	:".bold(),messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Validated By 	:".bold(),messages::NOT_IMPLEMENTED);
+	println!();
+	//dev
+}
+
 
 /// entry point
 fn main() {
@@ -123,10 +156,10 @@ fn main() {
 		wrap_pacman: false,
 		..Default::default()
 	};
-	let mut flatpak = FlatpakMeta::default();
 
+	// basic operations
 	if args.help {
-		println!("{}", messages::HELP_USAGE);	 //dev
+		println!("{}", messages::HELP_USAGE);
 		return;
 	} else if args.version {
 		if config.wrap_pacman {
@@ -138,17 +171,34 @@ fn main() {
 		return;
 	}
 
+	// init flatpak metadata
+	let mut flatpak = FlatpakMeta::default();
+	// update flatpak app list
+	match flatpak.get_apps() {
+		Ok(apps) => apps,
+		Err(e) => {
+			println!("Error: {}", e);
+			exit(EXIT_ERROR);
+		}
+	};
+	
+	// other operations
 	if args.query {
-		let flatpak_apps = match flatpak.get_apps() {
-			Ok(apps) => apps,
-			Err(e) => {
-				println!("Error: {}", e);
-				exit(255);
+		if args.info {
+			let idx: usize = 0;		//dev: get the right index
+			match flatpak.get_app_info(idx) {
+				Ok(app) => app,
+				Err(e) => {
+					println!("Error: {}", e);
+					exit(EXIT_ERROR);
+				}
+				
+			};
+			print_app_info(&flatpak.apps[0]);
+		} else {
+			for app in &flatpak.apps {
+				println!("{}", app.extid);
 			}
-		};
-
-		for app in &flatpak.apps {
-			println!("{}", app.extid);
 		}
 	} else if args.sync {
 		println!("{}{}", "Hello, world!".bold(), " Line2".green());
@@ -159,6 +209,6 @@ fn main() {
 	} else if args.files {
 	}
 
-	println!("{}", "Hello, world!".blue());
+	//println!("{}", "Hello, world!".blue());
 	//println!("pattern: {:?}, path: {:?}", args.pattern, args.path)
 }
