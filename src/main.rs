@@ -196,8 +196,17 @@ fn main() {
 			};
 			print_app_info(&flatpak.apps[0]);
 		} else {
-			for app in &flatpak.apps {
-				println!("{}", app.extid);
+			for i in 0..flatpak.apps.len() {
+                match flatpak.get_app_info(i) {
+                    Ok(app) => app,
+                    Err(e) => {
+                        println!("Error: {}", e);
+                        exit(EXIT_ERROR);
+                    }
+                    
+                };
+                let app : &FlatpakApp = &flatpak.apps[i];
+				println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
 			}
 		}
 	} else if args.sync {

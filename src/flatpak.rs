@@ -112,8 +112,12 @@ impl FlatpakMeta {
 				self.apps[idx].name = columns[0].into();
 				self.apps[idx].version = columns[4].into();
 				//dev: test version
+                if self.apps[idx].version.is_empty() {
+                    self.apps[idx].version = "?".to_string();
+                }
 			} else {
 				//dev failed
+                println!("error stuff: app has to few columns");
 			}
 		} else {
 			//dev failed
