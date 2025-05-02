@@ -90,7 +90,7 @@ impl FlatpakMeta {
 	}
 	
 	/// get more detailed infos about a (flatpak) app
-	pub fn get_app_info(&mut self, idx: usize) -> io::Result<&FlatpakApp> {	//dev: include strArr?
+	pub fn get_app_info(&mut self, idx: usize) -> io::Result<&FlatpakApp> {	//dev: include usizeArr?
 		if self.list_full.is_empty() {
 			let flatpak_list_raw = Command::new("flatpak")
 				.args(["list", "--columns=name,application,arch,branch,version,application"])
@@ -102,15 +102,28 @@ impl FlatpakMeta {
 		}
 		
 		// dev
-		//let searchterms = [&self.apps[idx].id, &self.apps[idx].arch, &self.apps[idx].branch];
-		//let matching: Vec<&str> = self.list_full
-		//	.lines()
-		//	.filter(|line| searchterms.iter().all(|k| line.contains(k)))
-		//	.collect();
+		let searchterms = [&self.apps[idx].id, &self.apps[idx].arch, &self.apps[idx].branch];
+		if let Some(matching) = self.list_full
+			.lines()
+			.find(|line| searchterms.iter().all(|k| line.contains(k.as_str())))
+		{
+			let columns: Vec<&str> = matching.split('\t').collect();
+			if columns.len() >= 4 {
+				self.apps[idx].name = columns[0].into();
+				self.apps[idx].version = columns[4].into();
+				//dev: test version
+			} else {
+				//dev failed
+			}
+		} else {
+			//dev failed
+			println!("error stuff: app not found in str");
+		}
 		//println!("{:?}", matching);
 
 		//dev: write the fields into the correct self.apps spots 
-		
+	
+
 		//for app in &mut apps {
 		//	app.extid = format!("{}/{}/{}", app.id, app.arch, app.branch);
 		//}
