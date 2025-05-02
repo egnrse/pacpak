@@ -53,6 +53,12 @@ pub struct FlatpakMeta {
 
 impl FlatpakMeta {
 	// can be instantiated with Default::default()
+
+    /// searches for programs in self.apps, with a name/id similar to `input`
+    /// returns a vector of indexes (for self.apps)
+    pub fn search_apps(&mut self, input: &str) -> Vec<usize> {
+        return vec![0]
+    }
 	
 	/// fetch a basic list off all apps from the flatpak cli
 	pub fn get_apps(&mut self) -> io::Result<&Vec<FlatpakApp>> {

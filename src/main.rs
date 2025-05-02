@@ -185,16 +185,27 @@ fn main() {
 	// other operations
 	if args.query {
 		if args.info {
-			let idx: usize = 0;		//dev: get the right index
-			match flatpak.get_app_info(idx) {
-				Ok(app) => app,
-				Err(e) => {
-					println!("Error: {}", e);
-					exit(EXIT_ERROR);
-				}
-				
-			};
-			print_app_info(&flatpak.apps[0]);
+            for i in flatpak.search_apps("") {
+                match flatpak.get_app_info(i) {
+                    Ok(app) => app,
+                    Err(e) => {
+                        println!("Error: {}", e);
+                        exit(EXIT_ERROR);
+                    }
+                    
+                };
+                print_app_info(&flatpak.apps[i]);
+            }
+		//	let idx: usize = 0;		//dev: get the right index
+		//	match flatpak.get_app_info(idx) {
+		//		Ok(app) => app,
+		//		Err(e) => {
+		//			println!("Error: {}", e);
+		//			exit(EXIT_ERROR);
+		//		}
+		//		
+		//	};
+		//	print_app_info(&flatpak.apps[0]);
 		} else {
 			for i in 0..flatpak.apps.len() {
                 match flatpak.get_app_info(i) {
