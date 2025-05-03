@@ -113,7 +113,7 @@ struct Cli {
 
 	/// Targets for operations
 	#[arg(value_name = "TARGETS")]
-	targets: Option<String>,
+	targets: Vec<String>,
 }
 
 
@@ -124,7 +124,7 @@ fn print_app_info(app: &FlatpakApp) {
 		name = format!("({})",app.name)
 	}
 	println!("{} {} {}", "Name		:".bold(),app.id, name);
-	println!("{} {}", "Version		:".bold(),app.version);
+	println!("{} {} ({})", "Version		:".bold(),app.version, app.branch);
 	println!("{} {}", "Description	:".bold(),app.description);
 	println!("{} {}", "Architecture	:".bold(),app.arch);
 	println!("{} {}", "URL		:".bold(),app.url);
@@ -181,20 +181,24 @@ fn main() {
 			exit(EXIT_ERROR);
 		}
 	};
+
+	let targets : Vec<&str> = args.targets
+		.iter()
+		.map(|s| s.as_str())
+		.collect();
 	
 	// other operations
 	if args.query {
 		if args.info {
-            for i in flatpak.search_apps("") {
-                match flatpak.get_app_info(i) {
+            for index in flatpak.search_apps(targets) {
+                match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
                         println!("Error: {}", e);
                         exit(EXIT_ERROR);
                     }
-                    
                 };
-                print_app_info(&flatpak.apps[i]);
+                print_app_info(&flatpak.apps[index]);
             }
 		//	let idx: usize = 0;		//dev: get the right index
 		//	match flatpak.get_app_info(idx) {
@@ -207,16 +211,15 @@ fn main() {
 		//	};
 		//	print_app_info(&flatpak.apps[0]);
 		} else {
-			for i in 0..flatpak.apps.len() {
-                match flatpak.get_app_info(i) {
+			for index in flatpak.search_apps(targets) {
+                match flatpak.get_app_info(index) {
                     Ok(app) => app,
                     Err(e) => {
                         println!("Error: {}", e);
                         exit(EXIT_ERROR);
                     }
-                    
                 };
-                let app : &FlatpakApp = &flatpak.apps[i];
+                let app : &FlatpakApp = &flatpak.apps[index];
 				println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
 			}
 		}
