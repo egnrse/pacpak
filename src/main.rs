@@ -6,6 +6,9 @@
 use clap::Parser;		// cli input parser
 use colored::Colorize;	// format output strings (for the terminal)
 use std::process::exit; // exit with an error
+//dev; needed
+use std::env;	// fetch the environment args
+use std::process::{Command, Stdio};	// 
 
 mod flatpak;
 use flatpak::{FlatpakMeta, FlatpakApp};
@@ -15,7 +18,7 @@ const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
-/// return value when an unkown failure within this program or within called programs occurs
+/// return value when an unkown failure within this or within a called program occurs
 const EXIT_ERROR: i32 = 255;
 
 /// store (user) settings
@@ -104,9 +107,12 @@ struct Cli {
 	/// List files (of a package)
 	#[arg(short = 'l', long = "list", action = clap::ArgAction::SetTrue)]
 	list: bool,
-	/// Seach the package that owns the given file
+	/// Search the package that owns the given file
 	#[arg(short = 'o', long = "owns", action = clap::ArgAction::SetTrue)]
 	owns: bool,
+	/// with S/Q: search online/locally; with R: recursive removal
+	#[arg(short = 's', long = "search", alias = "recursive", action = clap::ArgAction::SetTrue)]
+	search: bool,
 	
 	//dev: more to add
 
@@ -200,16 +206,6 @@ fn main() {
                 };
                 print_app_info(&flatpak.apps[index]);
             }
-		//	let idx: usize = 0;		//dev: get the right index
-		//	match flatpak.get_app_info(idx) {
-		//		Ok(app) => app,
-		//		Err(e) => {
-		//			println!("Error: {}", e);
-		//			exit(EXIT_ERROR);
-		//		}
-		//		
-		//	};
-		//	print_app_info(&flatpak.apps[0]);
 		} else {
 			for index in flatpak.search_apps(targets) {
                 match flatpak.get_app_info(index) {
@@ -224,7 +220,24 @@ fn main() {
 			}
 		}
 	} else if args.sync {
+		//dev
 		println!("{}{}", "Hello, world!".bold(), " Line2".green());
+		let args_raw: Vec<String> = env::args().skip(1).collect();
+		println!("{:?}",args_raw);
+		
+	if config.wrap_pacman {
+		let status = Command::new("pacman")
+			.args(&args_raw)
+			//.args(["-Q", "sed"])	//dev
+			.stdin(Stdio::inherit())
+			.stdout(Stdio::inherit())
+			.stderr(Stdio::inherit())
+			.status()
+			.expect("failed to execute pacman");	//dev: error msg
+
+			exit(status.code().unwrap_or(EXIT_ERROR));
+	}
+
 	} else if args.remove {
 	} else if args.database {
 	} else if args.deptest {
