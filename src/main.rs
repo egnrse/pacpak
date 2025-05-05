@@ -44,10 +44,7 @@ mod messages {
 	use indoc::indoc;	// multiline strings
 
 	/// field was skipped, because of the config.speed flag
-	pub const SKIPPED: &str = "[skipped]";
-	/// field not implemented
-	pub const NOT_IMPLEMENTED: &str = "[not Implemented]";
-	/// field not implemented
+	pub const NOT_IMPLEMENTED: &str = "[not implemented]";
 	pub const NONE: &str = "None";
 	/// help/usage message
 	pub const HELP_USAGE: &str = indoc! {r#"
@@ -144,7 +141,7 @@ fn print_app_info(app: &FlatpakApp) {
 	println!("{} {}", "Conflicts With	:".bold(), messages::NOT_IMPLEMENTED);
 	println!("{} {}", "Replaces	:".bold(), messages::NOT_IMPLEMENTED);
 	println!("{} {}", "Installed Size	:".bold(),app.install_size);
-	println!("{} {}", "Packager	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Packager	:".bold(), app.packager);
 	println!("{} {}", "Build Date	:".bold(),app.build_date);
 	println!("{} {}", "Install Date	:".bold(),app.install_date);
 	println!("{} {}", "Install Reason	:".bold(),messages::NOT_IMPLEMENTED);

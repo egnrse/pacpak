@@ -5,6 +5,14 @@ use std::process::Command;
 use std::io;
 use std::fs;
 
+/// string constants (eg. for errors or meta field values)
+mod text {
+	pub const VERSION_UNKOWN: &str = "?";
+	//pub const NONE: &str = "None";
+	pub const NOT_IMPLEMENTED: &str = "[not implemented]";
+	pub const SKIPPED: &str = "[skipped]";
+}
+
 /// flatpak app metadata
 #[derive(Debug, Default)]
 pub struct FlatpakApp {
@@ -164,11 +172,11 @@ impl FlatpakMeta {
 		let info_str: String = String::from_utf8_lossy(&flatpak_info_raw.stdout).into();
 
 		// before stuff
-		self.apps[idx].depends = "flatpak ".to_string();
+		let app = &mut self.apps[idx];
+		app.depends = "flatpak ".to_string();
 
 		let mut desc_read = false;	// detect multiline descriptions
 		for line in info_str.lines() {
-			let app = &mut self.apps[idx];
 
 			if desc_read {
 				// detect multiline descriptions
@@ -214,25 +222,33 @@ impl FlatpakMeta {
 			}
 		}// for line
 		
-		// after stuff
-		if self.apps[idx].version.is_empty() { self.apps[idx].version = "?".to_string(); }
+		// after stuff (or unimplemented fields)
+		if app.version.is_empty() { app.version = text::VERSION_UNKOWN.to_string(); }
+		if app.license.is_empty() { app.license = text::VERSION_UNKOWN.to_string(); }
+		app.packager = text::NOT_IMPLEMENTED.to_string();
+		app.url = text::NOT_IMPLEMENTED.to_string();
+		app.provides = text::NOT_IMPLEMENTED.to_string();
 		
 		// calc / fetch other fields
 		if true {
 			let location = Command::new("flatpak")
-				.args(["info", "--show-location", &self.apps[idx].extid])
+				.args(["info", "--show-location", &app.extid])
 				.output()?;
-			self.apps[idx].location = String::from_utf8_lossy(&location.stdout)
+			app.location = String::from_utf8_lossy(&location.stdout)
 				.trim_end()
 				.into();
-			let meta = fs::metadata(&self.apps[idx].location);
+			let meta = fs::metadata(&app.location);
 			if let Err(e) = meta {
 				return Err(io::Error::new(io::ErrorKind::Other, format!("command: 'flatpak info --show-location' failed: {}", e))); //dev
 			}
-			//self.apps[idx].install_date = &meta?.modified()?;	//dev
+			//app.install_date = &meta?.modified()?;	//dev
+			app.install_date = text::SKIPPED.to_string();
 
 			//println!("{:?}", &self.apps[idx].location);
 			//println!("{:?}", modified);
+		} else {
+			app.location = text::SKIPPED.to_string();
+			app.install_date = text::SKIPPED.to_string();
 		}
 		
 		Ok(&self.apps[idx])
