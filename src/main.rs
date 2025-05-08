@@ -177,6 +177,7 @@ fn main() {
 	// other operations
 	if args.query {
 		if args.info {
+			// show info for a package
             for index in flatpak.search_apps(targets) {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
@@ -187,7 +188,16 @@ fn main() {
                 };
                 print_app_info(&flatpak.apps[index]);
             }
+		} else if args.owns {
+			// which package owns this file
+			//dev: check with parent folder? (appid)
+			println!("Operation not implemented.");
+		} else if args.list {
+			// list files of a package
+			//dev: similar to above
+			println!("Operation not implemented.");
 		} else {
+			//
 			for index in flatpak.search_apps(targets) {
                 match flatpak.get_app_info(index) {
                     Ok(app) => app,
