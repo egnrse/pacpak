@@ -101,11 +101,11 @@ impl FlatpakMeta {
 	
 	/// searches for programs in self.apps, with a name/id similar to `input`
 	/// returns a vector of indexes (for self.apps)
-	pub fn search_apps(&mut self, input: Vec<&str>) -> Vec<usize> {
+	pub fn search_apps(&mut self, input: &Vec<&str>) -> Vec<usize> {
 		//println!("{:?}",input);
 		let mut out : Vec<usize> = Vec::new();
 		if input.len() > 0 && !input[0].is_empty() {
-			for text in &input { 
+			for text in input { 
 				let text = text.to_lowercase();
 				
 				for (i, app) in self.apps.iter().enumerate() {

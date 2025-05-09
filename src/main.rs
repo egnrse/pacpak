@@ -8,7 +8,10 @@ use std::process::exit; // exit with an error
 use colored::{Colorize, control};	// format output strings (for the terminal)
 //dev; needed
 use std::env;	// fetch the environment args
-use std::process::{Command, Stdio};	// 
+use std::process::{Command, Stdio};
+// file path stuff
+use std::path::{Path, PathBuf};
+use std::fs;
 
 // handling of cli args in cli.rs
 mod cli;
@@ -103,6 +106,25 @@ fn print_app_info(app: &FlatpakApp) {
 	println!();
 }
 
+/// finds the flatpak package that owns the target file
+/// returns its index (from flatpak.apps) or -1 if none was found
+fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize> {
+	let target_path = PathBuf::from(&target);
+	for index in 0..flatpak.apps.len() {
+		if flatpak.apps[index].location.is_empty() {
+			//dev: only get location (make a FlatpakMeta fn?)
+			let _ = flatpak.get_app_info_full(index);
+		}
+		let app_path = PathBuf::from(&flatpak.apps[index].location);
+		let target_path = fs::canonicalize(&target_path)?;
+		let app_path = fs::canonicalize(&app_path)?;
+		if file.starts_with(&folder) {
+			;
+		}
+	}//for
+	Ok(-1)
+}
+
 
 /// entry point
 fn main() {
@@ -110,7 +132,7 @@ fn main() {
 	let args_raw: Vec<String> = env::args().skip(1).collect();
 	let config = Config {	//dev: overwrite some fields for now
 		//color: false,
-		//wrap_pacman: false,
+		wrap_pacman: false,
 		..Default::default()
 	};
 
@@ -178,7 +200,7 @@ fn main() {
 	if args.query {
 		if args.info {
 			// show info for a package
-            for index in flatpak.search_apps(targets) {
+            for index in flatpak.search_apps(&targets) {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
@@ -191,6 +213,13 @@ fn main() {
 		} else if args.owns {
 			// which package owns this file
 			//dev: check with parent folder? (appid)
+			if targets.len() == 0 {
+				eprintln!("Error: {}", "no targets specified");
+				exit(1);
+			}
+			for target in &targets {
+				let idx = is_owned_by(&mut flatpak, target);
+			}
 			println!("Operation not implemented.");
 		} else if args.list {
 			// list files of a package
@@ -198,11 +227,11 @@ fn main() {
 			println!("Operation not implemented.");
 		} else {
 			//
-			for index in flatpak.search_apps(targets) {
+			for index in flatpak.search_apps(&targets) {
                 match flatpak.get_app_info(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        println!("Error: {}", e);
+                        eprintln!("Error: {}", e);
                         exit(EXIT_ERROR);
                     }
                 };
