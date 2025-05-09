@@ -10,7 +10,7 @@ use colored::{Colorize, control};	// format output strings (for the terminal)
 use std::env;	// fetch the environment args
 use std::process::{Command, Stdio};
 // file path stuff
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fs;
 
 // handling of cli args in cli.rs
@@ -118,8 +118,8 @@ fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize
 		let app_path = PathBuf::from(&flatpak.apps[index].location);
 		let target_path = fs::canonicalize(&target_path)?;
 		let app_path = fs::canonicalize(&app_path)?;
-		if file.starts_with(&folder) {
-			;
+		if target_path.starts_with(&app_path) {
+			return Ok(index.try_into().unwrap());
 		}
 	}//for
 	Ok(-1)
@@ -204,7 +204,7 @@ fn main() {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        println!("Error: {}", e);
+                        eprintln!("Error: {}", e);
                         exit(EXIT_ERROR);
                     }
                 };
@@ -219,8 +219,19 @@ fn main() {
 			}
 			for target in &targets {
 				let idx = is_owned_by(&mut flatpak, target);
-			}
-			println!("Operation not implemented.");
+				let idx = match idx {
+					Ok(idx) => idx,
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        exit(EXIT_ERROR);
+                    }
+				};
+				if idx >= 0 {
+					println!("{}", flatpak.apps[idx as usize].extid);
+				} else {
+					eprintln!("Error : {} {}", "no package owns", target);
+				}
+			}//for target
 		} else if args.list {
 			// list files of a package
 			//dev: similar to above

@@ -231,12 +231,8 @@ impl FlatpakMeta {
 		
 		// calc / fetch other fields
 		if true {
-			let location = Command::new("flatpak")
-				.args(["info", "--show-location", &app.extid])
-				.output()?;
-			app.location = String::from_utf8_lossy(&location.stdout)
-				.trim_end()
-				.into();
+			let _ = self.get_location(idx)?;
+			let app = &mut self.apps[idx];
 			let meta = fs::metadata(&app.location);
 			if let Err(e) = meta {
 				return Err(io::Error::new(io::ErrorKind::Other, format!("command: 'flatpak info --show-location' failed: {}", e))); //dev
@@ -251,6 +247,17 @@ impl FlatpakMeta {
 			app.install_date = text::SKIPPED.to_string();
 		}
 		
+		Ok(&self.apps[idx])
+	}
+	
+	/// get the location of a (flatpak) app
+	pub fn get_location(&mut self, idx: usize) -> io::Result<&FlatpakApp> {
+		let location = Command::new("flatpak")
+			.args(["info", "--show-location", &self.apps[idx].extid])
+			.output()?;
+		self.apps[idx].location = String::from_utf8_lossy(&location.stdout)
+			.trim_end()
+			.into();
 		Ok(&self.apps[idx])
 	}
 }
