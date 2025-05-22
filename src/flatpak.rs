@@ -4,6 +4,7 @@
 use std::process::Command;
 use std::io;
 use std::fs;
+use chrono::{DateTime, Local};
 
 /// string constants (eg. for errors or meta field values)
 mod text {
@@ -144,7 +145,6 @@ impl FlatpakMeta {
 			if columns.len() >= 4 {
 				self.apps[idx].name = columns[0].into();
 				self.apps[idx].version = columns[4].into();
-				//dev: test version
                 if self.apps[idx].version.is_empty() {
                     self.apps[idx].version = "?".to_string();
                 }
@@ -212,7 +212,13 @@ impl FlatpakMeta {
 					"Commit" => app.commit = value.to_string(),
 					"Parent" => app.parent = value.to_string(),
 					"Subject" => app.subject = value.to_string(),
-					"Date" => app.build_date = value.to_string(),
+					"Date" => {
+						app.build_date = value.to_string();
+						// try to parse the date into the pacman format
+						if let Ok(time) = DateTime::parse_from_str(&app.build_date, "%Y-%m-%d %H:%M:%S %z") {
+							app.build_date = time.format("%a %d %b %Y %I:%M:%S %p %Z").to_string();
+						}
+					},
 					_ => {}, // ignore unknown keys
 				}//match
 			} else if let Some((name, value)) = line.split_once('-') {
@@ -231,17 +237,17 @@ impl FlatpakMeta {
 		
 		// calc / fetch other fields
 		if true {
-			let _ = self.get_location(idx)?;
+			let _ = self.get_location(idx);
 			let app = &mut self.apps[idx];
+			
+			// get install date
 			let meta = fs::metadata(&app.location);
 			if let Err(e) = meta {
 				return Err(io::Error::new(io::ErrorKind::Other, format!("command: 'flatpak info --show-location' failed: {}", e))); //dev
 			}
-			//app.install_date = &meta?.modified()?;	//dev
-			app.install_date = text::SKIPPED.to_string();
-
-			//println!("{:?}", &self.apps[idx].location);
-			//println!("{:?}", modified);
+			let modified_time = &meta?.modified()?;
+			let datetime: DateTime<Local> = (*modified_time).into();
+			app.install_date = datetime.format("%a %d %b %Y %I:%M:%S %p %Z").to_string();
 		} else {
 			app.location = text::SKIPPED.to_string();
 			app.install_date = text::SKIPPED.to_string();
