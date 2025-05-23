@@ -32,7 +32,6 @@ const EXIT_ERROR: i32 = 255;
 /// store (user) settings
 struct Config {
 	wrap_pacman: bool,
-	speed:		bool,
 	color:		bool,
 }
 /// standart values for the settings
@@ -40,7 +39,6 @@ impl Default for Config {
 	fn default() -> Self {
 		Self {
 			wrap_pacman: true,
-			speed:		false,
 			color:		true,
 		}
 	}
@@ -48,13 +46,17 @@ impl Default for Config {
 
 
 /// message strings for eg. -Qi fields, --help (and more)
-mod messages {
+mod text {
 	use indoc::indoc;	// multiline strings
 
 	pub const NOT_IMPLEMENTED: &str = "[not implemented]";
 	pub const NONE: &str = "None";
 	pub const INSTALL_REASON_EXP: &str = "Explicitly installed";
 	pub const INSTALL_REASON_DEP: &str = "Installed as a dependency for another package";
+	/// Prefix for error messages
+	pub const ERROR_PREFIX:&str = "error:";
+	pub const NO_TARGETS:&str = "no targets specified (use -h for help)";
+	/// Identation for the version display
 	pub const VERSION_IDENTATION: &str = "                       ";
 	/// help/usage message
 	pub const HELP_USAGE: &str = indoc! {r#"
@@ -72,7 +74,14 @@ mod messages {
 
 
 
-///	outputs text similar to `pacman -Qi`
+/// output text in the format:
+///		`id (name) version (branch)`
+/// (similar to `pacman -Q`)
+fn print_app_short(app: &FlatpakApp) {
+	println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
+}
+
+///	output text similar to `pacman -Qi`
 fn print_app_info(app: &FlatpakApp) {
 	let mut name = String::new();
 	if !app.name.is_empty() {
@@ -87,34 +96,33 @@ fn print_app_info(app: &FlatpakApp) {
 	println!("{} {}", "Groups		:".bold(),app.collection);
 	println!("{} {}", "Provides	:".bold(),app.provides);
 	println!("{} {}", "Depends On	:".bold(),app.depends);
-	println!("{} {}", "Optional Deps	:".bold(), messages::NONE);
-	println!("{} {}", "Required By	:".bold(), messages::NOT_IMPLEMENTED);
-	println!("{} {}", "Optional For	:".bold(), messages::NONE);
-	println!("{} {}", "Conflicts With	:".bold(), messages::NONE);
-	println!("{} {}", "Replaces	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Optional Deps	:".bold(), text::NONE);
+	println!("{} {}", "Required By	:".bold(), text::NOT_IMPLEMENTED);
+	println!("{} {}", "Optional For	:".bold(), text::NONE);
+	println!("{} {}", "Conflicts With	:".bold(), text::NONE);
+	println!("{} {}", "Replaces	:".bold(), text::NOT_IMPLEMENTED);
 	println!("{} {}", "Installed Size	:".bold(),app.install_size);
 	println!("{} {}", "Packager	:".bold(), app.packager);
 	println!("{} {}", "Build Date	:".bold(),app.build_date);
 	println!("{} {}", "Install Date	:".bold(),app.install_date);
 	
 	if app.runtime.is_empty() {
-		println!("{} {}", "Install Reason	:".bold(), messages::INSTALL_REASON_DEP);
+		println!("{} {}", "Install Reason	:".bold(), text::INSTALL_REASON_DEP);
 	} else {
-		println!("{} {}", "Install Reason	:".bold(), messages::INSTALL_REASON_EXP);
+		println!("{} {}", "Install Reason	:".bold(), text::INSTALL_REASON_EXP);
 	}
 	
-	println!("{} {}", "Install Script	:".bold(), messages::NOT_IMPLEMENTED);
-	println!("{} {}", "Validated By 	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Install Script	:".bold(), text::NOT_IMPLEMENTED);
+	println!("{} {}", "Validated By 	:".bold(), text::NOT_IMPLEMENTED);
 	println!();
 }
 
-/// finds the flatpak package that owns the target file
-/// returns its index (from flatpak.apps) or -1 if none was found
+/// find the flatpak package that owns the target file  
+/// return its index (from flatpak.apps) or -1 if none was found
 fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize> {
 	let target_path = PathBuf::from(&target);
 	for index in 0..flatpak.apps.len() {
 		if flatpak.apps[index].location.is_empty() {
-			//dev: only get location (make a FlatpakMeta fn?)
 			let _ = flatpak.get_location(index);
 		}
 		let app_path = PathBuf::from(&flatpak.apps[index].location);
@@ -128,7 +136,7 @@ fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize
 }
 
 
-/// call pacman with the given args (it inherits all buffers)
+/// call pacman with the given args (inherit buffers)  
 /// return the exit status
 fn pacman_exec(args: &Vec<String>) -> ExitStatus {
 	Command::new("pacman")
@@ -137,10 +145,38 @@ fn pacman_exec(args: &Vec<String>) -> ExitStatus {
 		.stdout(Stdio::inherit())
 		.stderr(Stdio::inherit())
 		.status()
-		.expect("ERROR: failed to execute pacman")
+		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()))
 }
 
-/// call flatpak with the given args
+/// call pacman with the given args (pipe buffers)  
+/// return a tuple of (stdout, stderr, exit status)
+fn pacman_run(args: &Vec<String>) -> (String, String, ExitStatus) {
+	let mut child = Command::new("pacman")
+		.args(args)
+		.stdin(Stdio::null())
+		.stdout(Stdio::piped())
+		.stderr(Stdio::piped())
+		.spawn()
+		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()));
+
+	let mut stdout = String::new();
+	let mut stderr = String::new();
+
+	if let Some(mut out) = child.stdout.take() {
+		out.read_to_string(&mut stdout)
+			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red()));
+	}
+	if let Some(mut err) = child.stderr.take() {
+		err.read_to_string(&mut stderr)
+			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
+	}
+
+	let status = child.wait()
+		.expect(&format!("{prefix} failed to wait for pacman child process", prefix = text::ERROR_PREFIX.red()));
+	(stdout, stderr, status)
+}
+
+/// call flatpak with the given args (pipe buffers)  
 /// return a tuple of (stdout, stderr, exit status)
 fn flatpak_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 	let mut child = Command::new("flatpak")
@@ -149,19 +185,22 @@ fn flatpak_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
 		.spawn()
-		.expect("ERROR: failed to execute flatpak");
+		.expect(&format!("{prefix} failed to execute flatpak", prefix = text::ERROR_PREFIX.red()));
 
 	let mut stdout = String::new();
 	let mut stderr = String::new();
 
 	if let Some(mut out) = child.stdout.take() {
-		out.read_to_string(&mut stdout).expect("ERROR: failed to read stdout");
+		out.read_to_string(&mut stdout)
+			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red()));
 	}
 	if let Some(mut err) = child.stderr.take() {
-		err.read_to_string(&mut stderr).expect("ERROR: failed to read stderr");
+		err.read_to_string(&mut stderr)
+			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
 	}
 
-	let status = child.wait().expect("ERROR: failed to wait for flatpak child process");
+	let status = child.wait()
+		.expect(&format!("{prefix} failed to wait for flatpak child process", prefix = text::ERROR_PREFIX.red()));
 	(stdout, stderr, status)
 }
 
@@ -189,17 +228,18 @@ fn main() {
 	
 	// pacman integration
 	let mut stderr_pacman = String::new();
-	let mut status: ExitStatus = Command::new("true")
+	let status_true: ExitStatus = Command::new("true")
 		.status()
-		.expect("ERROR: failed to get exit status");
-	
+		.expect(&format!("{prefix} failed to get exit status", prefix = text::ERROR_PREFIX.red()));
+	let mut status: ExitStatus = status_true.clone();
+
 	// basic operations
 	if args.help {
-		println!("{}", messages::HELP_USAGE);
+		println!("{}", text::HELP_USAGE);
 		return;
 	} else if args.version {
 		let indent = if config.wrap_pacman {
-			messages::VERSION_IDENTATION
+			text::VERSION_IDENTATION
 		} else {
 			""
 		};
@@ -244,11 +284,13 @@ fn main() {
 				.stdout(Stdio::inherit());
 			cmd.stderr(Stdio::piped());
 			let mut child = cmd.spawn()
-				.expect("ERROR: failed to execute pacman");
+				.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()));
 			if let Some(mut err) = child.stderr.take() {
-				err.read_to_string(&mut stderr_pacman).expect("ERROR: failed to read stderr");
+				err.read_to_string(&mut stderr_pacman)
+					.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
 			}
-			status = child.wait().expect("ERROR: failed to wait on pacman");
+			status = child.wait()
+				.expect(&format!("{prefix} failed to wait on pacman", prefix = text::ERROR_PREFIX.red()));
 		}
 		if args.info {
 			// show info for a package
@@ -261,7 +303,7 @@ fn main() {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
                         exit(EXIT_ERROR);
                     }
                 };
@@ -273,7 +315,7 @@ fn main() {
 			if targets.len() == 0 {
 				eprintln!("{}", stderr_pacman);
 				exit(status.code().unwrap_or(EXIT_ERROR));
-				//eprintln!("Error: {}", "no targets specified");	//dev
+				//eprintln!("{} {}", text::ERROR_PREFIX.red(), "no targets specified");	//dev
 				//exit(1);
 			}
 			// look if already found (by pacman)
@@ -285,7 +327,7 @@ fn main() {
 				let idx = match idx {
 					Ok(idx) => idx,
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
                         exit(EXIT_ERROR);
                     }
 				};
@@ -301,30 +343,50 @@ fn main() {
 			// list files of a package
 			//dev: similar to above
 			println!("Operation not implemented.");
+		} else if args.search {
+			println!("Operation not implemented.");
 		} else {
-			//
+			// just -Q
 			for index in flatpak.search_apps(&targets) {
                 match flatpak.get_app_info(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
                         exit(EXIT_ERROR);
                     }
                 };
                 let app : &FlatpakApp = &flatpak.apps[index];
-				println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
+				print_app_short(app);
 			}
 		}
+	
 	} else if args.sync {
 		if args.search {
 			pacman_exec(&args_pacman);
 			//dev: flatpak search
+			//remote/print_app_short() [installed]
+			//let (stdout_flatpak,_,_) = flatpak_run(&vec!["--version".to_string()]);
+		} else {
+			if targets.len() == 0 {
+				eprintln!("{} {}", text::ERROR_PREFIX.red(), text::NO_TARGETS);
+				exit(1);
+			}
+			//dev: test if it is a flatpak
+			//dev: if both is available (flat and pacman), let choose
+			//dev: for each package?
+			let pkg: String = format!("^{}$", targets[0]);
+			let (stdout_pac, stderr_pac, status_pac) = pacman_run(&vec!["-Ss".to_string(), pkg]);
+			if !stdout_pac.is_empty() && status_pac == status_true {
+				status = pacman_exec(&args_pacman);
+				exit(status.code().unwrap_or(EXIT_ERROR));
+			} else {
+				//else try flatpak?
+				println!("{:?}", stdout_pac);
+				println!("{:?}", stderr_pac);
+				println!("{:?}", status_pac);
+			}
+			println!("Operation not implemented.");
 		}
-		
-		//dev: test if it is a pacman package
-		pacman_exec(&args_pacman);
-		//else try flatpak?
-		println!("Operation not implemented.");
 
 	} else if args.remove {
 		pacman_exec(&args_pacman);

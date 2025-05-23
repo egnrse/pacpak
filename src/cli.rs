@@ -57,8 +57,14 @@ pub struct Cli {
 	/// with S/Q: search online/locally; with R: recursive removal
 	#[arg(short = 's', long = "search", alias = "recursive", action = clap::ArgAction::SetTrue)]
 	pub search: bool,
+	#[arg(short = 'r', long = "root", value_name = "ROOT")]
+	pub install_root: Option<String>,
 	
 	//dev: more to add
+	
+	/// the remote for flatpak operations (eg. flathub)
+	#[arg(long = "remote", value_name = "REMOTE")]
+	pub remote: Option<String>,
 
 
 	/// Targets for operations
