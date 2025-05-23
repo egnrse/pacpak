@@ -142,9 +142,9 @@ fn pacman_exec(args: &Vec<String>) -> ExitStatus {
 
 /// call flatpak with the given args
 /// return a tuple of (stdout, stderr, exit status)
-fn flatpak_run(args: Vec<String>) -> (String, String, ExitStatus) {
+fn flatpak_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 	let mut child = Command::new("flatpak")
-		.args(&args)
+		.args(args)
 		.stdin(Stdio::null())
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
@@ -209,7 +209,7 @@ fn main() {
 		println!("{}", indent);
 		println!("{}---", indent);
 		println!("{}", indent);
-		let (stdout_flatpak,_,_) = flatpak_run(vec!["--version".to_string()]);
+		let (stdout_flatpak,_,_) = flatpak_run(&vec!["--version".to_string()]);
 		println!("{}{}", indent, stdout_flatpak);
 		if config.wrap_pacman {
 			println!("{}---", indent);
