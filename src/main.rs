@@ -4,11 +4,12 @@
 // main.rs
 
 use clap::Parser;		// cli input parser
-use std::process::exit; // exit with an error
+use std::process::{exit, ExitStatus}; // exit with an error
 use colored::{Colorize, control};	// format output strings (for the terminal)
 //dev; needed
-use std::env;	// fetch the environment args
+use std::env;			// fetch the environment args
 use std::process::{Command, Stdio};
+use std::io::Read;		// pipe the output of a command
 // file path stuff
 use std::path::PathBuf;
 use std::fs;
@@ -64,7 +65,8 @@ mod messages {
 			{-R, --remove}
 			{-h --help}
 			{-V --version}
-			TODO	//dev
+			
+			(or other pacman operations)
 	"#};
 }
 
@@ -88,7 +90,7 @@ fn print_app_info(app: &FlatpakApp) {
 	println!("{} {}", "Optional Deps	:".bold(), messages::NONE);
 	println!("{} {}", "Required By	:".bold(), messages::NOT_IMPLEMENTED);
 	println!("{} {}", "Optional For	:".bold(), messages::NONE);
-	println!("{} {}", "Conflicts With	:".bold(), messages::NOT_IMPLEMENTED);
+	println!("{} {}", "Conflicts With	:".bold(), messages::NONE);
 	println!("{} {}", "Replaces	:".bold(), messages::NOT_IMPLEMENTED);
 	println!("{} {}", "Installed Size	:".bold(),app.install_size);
 	println!("{} {}", "Packager	:".bold(), app.packager);
@@ -113,7 +115,7 @@ fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize
 	for index in 0..flatpak.apps.len() {
 		if flatpak.apps[index].location.is_empty() {
 			//dev: only get location (make a FlatpakMeta fn?)
-			let _ = flatpak.get_app_info_full(index);
+			let _ = flatpak.get_location(index);
 		}
 		let app_path = PathBuf::from(&flatpak.apps[index].location);
 		let target_path = fs::canonicalize(&target_path)?;
@@ -126,13 +128,51 @@ fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize
 }
 
 
+/// call pacman with the given args (it inherits all buffers)
+/// return the exit status
+fn pacman_exec(args: &Vec<String>) -> ExitStatus {
+	Command::new("pacman")
+		.args(args)
+		.stdin(Stdio::inherit())
+		.stdout(Stdio::inherit())
+		.stderr(Stdio::inherit())
+		.status()
+		.expect("ERROR: failed to execute pacman")
+}
+
+/// call flatpak with the given args
+/// return a tuple of (stdout, stderr, exit status)
+fn flatpak_run(args: Vec<String>) -> (String, String, ExitStatus) {
+	let mut child = Command::new("flatpak")
+		.args(&args)
+		.stdin(Stdio::null())
+		.stdout(Stdio::piped())
+		.stderr(Stdio::piped())
+		.spawn()
+		.expect("ERROR: failed to execute flatpak");
+
+	let mut stdout = String::new();
+	let mut stderr = String::new();
+
+	if let Some(mut out) = child.stdout.take() {
+		out.read_to_string(&mut stdout).expect("ERROR: failed to read stdout");
+	}
+	if let Some(mut err) = child.stderr.take() {
+		err.read_to_string(&mut stderr).expect("ERROR: failed to read stderr");
+	}
+
+	let status = child.wait().expect("ERROR: failed to wait for flatpak child process");
+	(stdout, stderr, status)
+}
+
+
 /// entry point
 fn main() {
 	let args = Cli::parse();
 	let args_raw: Vec<String> = env::args().skip(1).collect();
 	let config = Config {	//dev: overwrite some fields for now
 		//color: false,
-		wrap_pacman: false,
+		wrap_pacman: true,
 		..Default::default()
 	};
 
@@ -146,19 +186,12 @@ fn main() {
 		// deactivate the colored crate globally
 		control::set_override(false);
 	}
-	if config.wrap_pacman & !args.help {
-		let status = Command::new("pacman")
-			.args(&args_pacman)
-			.stdin(Stdio::inherit())
-			.stdout(Stdio::inherit())
-			.stderr(Stdio::inherit())
-			.status()
-			.expect("ERROR: failed to execute pacman");
-		if !status.success() {
-			// test if this is an ok error? //dev
-			//exit(status.code().unwrap_or(EXIT_ERROR));
-		}
-	}
+	
+	// pacman integration
+	let mut stderr_pacman = String::new();
+	let mut status: ExitStatus = Command::new("true")
+		.status()
+		.expect("ERROR: failed to get exit status");
 	
 	// basic operations
 	if args.help {
@@ -170,12 +203,18 @@ fn main() {
 		} else {
 			""
 		};
-		if config.wrap_pacman {
-			println!("{}---", indent);
-			println!("{}", indent);
-		}
+		println!("{}", indent);
 		println!("{}Pacpak v{} - {} License", indent, VERSION, LICENSE);
 		println!("{}Copyright (C) 2025 {}", indent, AUTHORS);
+		println!("{}", indent);
+		println!("{}---", indent);
+		println!("{}", indent);
+		let (stdout_flatpak,_,_) = flatpak_run(vec!["--version".to_string()]);
+		println!("{}{}", indent, stdout_flatpak);
+		if config.wrap_pacman {
+			println!("{}---", indent);
+			pacman_exec(&args_pacman);
+		}
 		return;
 	}
 
@@ -198,9 +237,27 @@ fn main() {
 	
 	// other operations
 	if args.query {
+		if config.wrap_pacman {
+			let mut cmd = Command::new("pacman");
+			cmd.args(&args_pacman)
+				.stdin(Stdio::inherit())
+				.stdout(Stdio::inherit());
+			cmd.stderr(Stdio::piped());
+			let mut child = cmd.spawn()
+				.expect("ERROR: failed to execute pacman");
+			if let Some(mut err) = child.stderr.take() {
+				err.read_to_string(&mut stderr_pacman).expect("ERROR: failed to read stderr");
+			}
+			status = child.wait().expect("ERROR: failed to wait on pacman");
+		}
 		if args.info {
 			// show info for a package
-            for index in flatpak.search_apps(&targets) {
+			let results = flatpak.search_apps(&targets);
+			if results.is_empty() {
+				eprintln!("{}", stderr_pacman);
+				exit(status.code().unwrap_or(EXIT_ERROR));
+			}
+            for index in results {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
@@ -214,8 +271,14 @@ fn main() {
 			// which package owns this file
 			//dev: check with parent folder? (appid)
 			if targets.len() == 0 {
-				eprintln!("Error: {}", "no targets specified");
-				exit(1);
+				eprintln!("{}", stderr_pacman);
+				exit(status.code().unwrap_or(EXIT_ERROR));
+				//eprintln!("Error: {}", "no targets specified");	//dev
+				//exit(1);
+			}
+			// look if already found (by pacman)
+			if status.code().unwrap_or(EXIT_ERROR) == 0 {
+				exit(status.code().unwrap_or(EXIT_ERROR));
 			}
 			for target in &targets {
 				let idx = is_owned_by(&mut flatpak, target);
@@ -229,7 +292,9 @@ fn main() {
 				if idx >= 0 {
 					println!("{}", flatpak.apps[idx as usize].extid);
 				} else {
-					eprintln!("Error : {} {}", "no package owns", target);
+					eprintln!("{}", stderr_pacman);
+					exit(status.code().unwrap_or(EXIT_ERROR));
+					//eprintln!("Error : {} {}", "no package owns", target);	//dev
 				}
 			}//for target
 		} else if args.list {
@@ -251,28 +316,31 @@ fn main() {
 			}
 		}
 	} else if args.sync {
-		//dev
-		println!("{}{}", "Hello, world!".bold(), " Line2".green());
-		let args_raw: Vec<String> = env::args().skip(1).collect();
-		println!("{:?}",args_raw);
-		
-		if config.wrap_pacman {
-			let status = Command::new("pacman")
-				.args(&args_raw)
-				//.args(["-Q", "sed"])	//dev
-				.stdin(Stdio::inherit())
-				.stdout(Stdio::inherit())
-				.stderr(Stdio::inherit())
-				.status()
-				.expect("failed to execute pacman");	//dev: error msg
-
-			exit(status.code().unwrap_or(EXIT_ERROR));
+		if args.search {
+			pacman_exec(&args_pacman);
+			//dev: flatpak search
 		}
+		
+		//dev: test if it is a pacman package
+		pacman_exec(&args_pacman);
+		//else try flatpak?
+		println!("Operation not implemented.");
+
 	} else if args.remove {
+		pacman_exec(&args_pacman);
+		println!("Operation not implemented.");
 	} else if args.database {
+		pacman_exec(&args_pacman);
+		println!("Operation not implemented.");
 	} else if args.deptest {
+		pacman_exec(&args_pacman);
+		println!("Operation not implemented.");
 	} else if args.upgrade {
+		pacman_exec(&args_pacman);
+		println!("Operation not implemented.");
 	} else if args.files {
+		pacman_exec(&args_pacman);
+		println!("Operation not implemented.");
 	}
 
 	//println!("{}", "Hello, world!".blue());
