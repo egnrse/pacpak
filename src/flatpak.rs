@@ -14,6 +14,12 @@ mod text {
 	pub const SKIPPED: &str = "[skipped]";
 }
 
+/// strings from flatpak commands (or their output)
+pub mod flatpak_strings {
+	// return string when no results where found for `flatpak search TEXT`
+	pub const SEARCH_NO_RESULTS: &str = "No matches found";
+}
+
 /// flatpak app metadata
 #[derive(Debug, Default)]
 pub struct FlatpakApp {
@@ -150,11 +156,11 @@ impl FlatpakMeta {
                 }
 			} else {
 				//dev failed
-                println!("error stuff: app has to few columns");
+                eprintln!("error stuff: app has to few columns");
 			}
 		} else {
 			//dev failed
-			println!("error stuff: app not found in str");
+			eprintln!("error stuff: app not found in str");
 		}
 		//println!("{:?}", matching);
 		
@@ -265,6 +271,52 @@ impl FlatpakMeta {
 			.trim_end()
 			.into();
 		Ok(&self.apps[idx])
+	}
+	
+	// ====== OTHER FUNCTIONS ======
+	
+	/// search for flatpaks (including not installed)
+	/// returns a vector of results
+	pub fn search(self: &FlatpakMeta, input: Vec<&str>) -> io::Result<Vec<FlatpakApp>> {
+		let mut args = vec!["search".to_string(), "--columns=name,application,branch,version,remotes,description,application".to_string()];
+		args.extend(input.iter().map(|s| s.to_string()));
+		let flatpak_search_raw = Command::new("flatpak")
+			.args(&args)
+			.output()?;
+		if !flatpak_search_raw.status.success() {
+			return Err(io::Error::new(io::ErrorKind::Other, "command: 'flatpak search' failed")); //dev
+		}
+		let search_str: String = String::from_utf8_lossy(&flatpak_search_raw.stdout).into();
+
+		let mut results : Vec<FlatpakApp> = vec![];
+		if search_str == format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS) {
+			// ignore if no results where found
+		} else {
+			for line in search_str.lines() {
+				let columns: Vec<&str> = line.split('\t').collect();
+				if columns.len() == 7 {
+					let mut app: FlatpakApp = FlatpakApp::default();
+					app.name = columns[0].into();
+					app.id = columns[1].into();
+					app.branch = columns[2].into();
+					app.version = columns[3].into();
+					app.origin = columns[4].into();
+					app.description = columns[5].into();
+					
+					app.extid = format!("{}/{}/{}", app.id, app.arch, app.branch);
+					results.push(app);
+				}
+				else {
+					//dev failed
+					eprintln!("error stuff: app has to few columns");
+					println!("{}", line);
+				}
+			}//for line
+		}//if search_str
+
+
+		//println!("{}", search_str);	//dev
+		Ok(results)
 	}
 }
 

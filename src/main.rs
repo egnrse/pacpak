@@ -53,6 +53,7 @@ mod text {
 	pub const NONE: &str = "None";
 	pub const INSTALL_REASON_EXP: &str = "Explicitly installed";
 	pub const INSTALL_REASON_DEP: &str = "Installed as a dependency for another package";
+	pub const INSTALLED_MARKER: &str = "[installed]";
 	/// Prefix for error messages
 	pub const ERROR_PREFIX:&str = "error:";
 	pub const NO_TARGETS:&str = "no targets specified (use -h for help)";
@@ -79,6 +80,18 @@ mod text {
 /// (similar to `pacman -Q`)
 fn print_app_short(app: &FlatpakApp) {
 	println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
+}
+
+/// output text in the format:
+///		`remote/id (name) version (branch)`
+/// (similar to `pacman -Ss`)
+fn print_app_long(app: &FlatpakApp, installed: bool) {
+	let installed_str: &str = if installed {
+		&text::INSTALLED_MARKER.cyan().bold().to_string()
+	} else { "" };
+	
+	println!("{}{}{} ({}) {} ({}) {}", app.origin.magenta().bold(), "/".bold(), app.id.bold(), app.name, app.version.bold().green(), app.branch, installed_str);
+	println!("    {}", app.description);
 }
 
 ///	output text similar to `pacman -Qi`
@@ -369,8 +382,19 @@ fn main() {
 			pacman_exec(&args_pacman);
 			//dev: flatpak search
 			//remote/print_app_short() [installed]
-			//let (stdout_flatpak,_,_) = flatpak_run(&vec!["search".to_string()], targets);	//dev
-			//println!("{}", stdout_flatpak);
+			let matches: Vec<FlatpakApp>  = match flatpak.search(targets) {
+				Ok(app) => app,
+				Err(e) => {
+					eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
+					exit(EXIT_ERROR);
+				}
+			};
+			for app in &matches {
+				let installed = flatpak.apps.iter()
+					.any(|a| a.id == app.id && a.branch == app.branch);
+				print_app_long(&app, installed);
+			}
+			//search
 		} else {
 			if targets.len() == 0 {
 				eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
