@@ -145,7 +145,7 @@ fn pacman_exec(args: &Vec<String>) -> ExitStatus {
 		.stdout(Stdio::inherit())
 		.stderr(Stdio::inherit())
 		.status()
-		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()))
+		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red().bold()))
 }
 
 /// call pacman with the given args (pipe buffers)  
@@ -157,22 +157,22 @@ fn pacman_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
 		.spawn()
-		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()));
+		.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red().bold()));
 
 	let mut stdout = String::new();
 	let mut stderr = String::new();
 
 	if let Some(mut out) = child.stdout.take() {
 		out.read_to_string(&mut stdout)
-			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red()));
+			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red().bold()));
 	}
 	if let Some(mut err) = child.stderr.take() {
 		err.read_to_string(&mut stderr)
-			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
+			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red().bold()));
 	}
 
 	let status = child.wait()
-		.expect(&format!("{prefix} failed to wait for pacman child process", prefix = text::ERROR_PREFIX.red()));
+		.expect(&format!("{prefix} failed to wait for pacman child process", prefix = text::ERROR_PREFIX.red().bold()));
 	(stdout, stderr, status)
 }
 
@@ -185,22 +185,22 @@ fn flatpak_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
 		.spawn()
-		.expect(&format!("{prefix} failed to execute flatpak", prefix = text::ERROR_PREFIX.red()));
+		.expect(&format!("{prefix} failed to execute flatpak", prefix = text::ERROR_PREFIX.red().bold()));
 
 	let mut stdout = String::new();
 	let mut stderr = String::new();
 
 	if let Some(mut out) = child.stdout.take() {
 		out.read_to_string(&mut stdout)
-			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red()));
+			.expect(&format!("{prefix} failed to read stdout", prefix = text::ERROR_PREFIX.red().bold()));
 	}
 	if let Some(mut err) = child.stderr.take() {
 		err.read_to_string(&mut stderr)
-			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
+			.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red().bold()));
 	}
 
 	let status = child.wait()
-		.expect(&format!("{prefix} failed to wait for flatpak child process", prefix = text::ERROR_PREFIX.red()));
+		.expect(&format!("{prefix} failed to wait for flatpak child process", prefix = text::ERROR_PREFIX.red().bold()));
 	(stdout, stderr, status)
 }
 
@@ -230,7 +230,7 @@ fn main() {
 	let mut stderr_pacman = String::new();
 	let status_true: ExitStatus = Command::new("true")
 		.status()
-		.expect(&format!("{prefix} failed to get exit status", prefix = text::ERROR_PREFIX.red()));
+		.expect(&format!("{prefix} failed to get exit status", prefix = text::ERROR_PREFIX.red().bold()));
 	let mut status: ExitStatus = status_true.clone();
 
 	// basic operations
@@ -284,13 +284,13 @@ fn main() {
 				.stdout(Stdio::inherit());
 			cmd.stderr(Stdio::piped());
 			let mut child = cmd.spawn()
-				.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red()));
+				.expect(&format!("{prefix} failed to execute pacman", prefix = text::ERROR_PREFIX.red().bold()));
 			if let Some(mut err) = child.stderr.take() {
 				err.read_to_string(&mut stderr_pacman)
-					.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red()));
+					.expect(&format!("{prefix} failed to read stderr", prefix = text::ERROR_PREFIX.red().bold()));
 			}
 			status = child.wait()
-				.expect(&format!("{prefix} failed to wait on pacman", prefix = text::ERROR_PREFIX.red()));
+				.expect(&format!("{prefix} failed to wait on pacman", prefix = text::ERROR_PREFIX.red().bold()));
 		}
 		if args.info {
 			// show info for a package
@@ -303,7 +303,7 @@ fn main() {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
                         exit(EXIT_ERROR);
                     }
                 };
@@ -311,11 +311,10 @@ fn main() {
             }
 		} else if args.owns {
 			// which package owns this file
-			//dev: check with parent folder? (appid)
 			if targets.len() == 0 {
 				eprintln!("{}", stderr_pacman);
 				exit(status.code().unwrap_or(EXIT_ERROR));
-				//eprintln!("{} {}", text::ERROR_PREFIX.red(), "no targets specified");	//dev
+				//eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), "no targets specified");	//dev
 				//exit(1);
 			}
 			// look if already found (by pacman)
@@ -327,7 +326,7 @@ fn main() {
 				let idx = match idx {
 					Ok(idx) => idx,
                     Err(e) => {
-                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
                         exit(EXIT_ERROR);
                     }
 				};
@@ -347,11 +346,16 @@ fn main() {
 			println!("Operation not implemented.");
 		} else {
 			// just -Q
-			for index in flatpak.search_apps(&targets) {
+			let results = flatpak.search_apps(&targets);
+			if results.is_empty() {
+				eprintln!("{}", stderr_pacman);
+				exit(status.code().unwrap_or(EXIT_ERROR));
+			}
+			for index in results {
                 match flatpak.get_app_info(index) {
                     Ok(app) => app,
                     Err(e) => {
-                        eprintln!("{} {}", text::ERROR_PREFIX.red(), e);
+                        eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
                         exit(EXIT_ERROR);
                     }
                 };
@@ -365,10 +369,11 @@ fn main() {
 			pacman_exec(&args_pacman);
 			//dev: flatpak search
 			//remote/print_app_short() [installed]
-			//let (stdout_flatpak,_,_) = flatpak_run(&vec!["--version".to_string()]);
+			//let (stdout_flatpak,_,_) = flatpak_run(&vec!["search".to_string()], targets);	//dev
+			//println!("{}", stdout_flatpak);
 		} else {
 			if targets.len() == 0 {
-				eprintln!("{} {}", text::ERROR_PREFIX.red(), text::NO_TARGETS);
+				eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
 				exit(1);
 			}
 			//dev: test if it is a flatpak
