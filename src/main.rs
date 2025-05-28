@@ -28,6 +28,7 @@ const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
 /// return value when an unkown failure within this or within a called program occurs
 const EXIT_ERROR: i32 = 255;
+const EXIT_NOT_FOUND: i32 = 1;
 
 /// store (user) settings
 struct Config {
@@ -389,6 +390,10 @@ fn main() {
 					exit(EXIT_ERROR);
 				}
 			};
+			if matches.len() == 0 {
+				//eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), "no package found");
+				exit(EXIT_NOT_FOUND);
+			}
 			for app in &matches {
 				let installed = flatpak.apps.iter()
 					.any(|a| a.id == app.id && a.branch == app.branch);
@@ -398,7 +403,7 @@ fn main() {
 		} else {
 			if targets.len() == 0 {
 				eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
-				exit(1);
+				exit(EXIT_NOT_FOUND);
 			}
 			//dev: test if it is a flatpak
 			//dev: if both is available (flat and pacman), let choose
