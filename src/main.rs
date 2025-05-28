@@ -65,6 +65,8 @@ mod text {
 	pub const NO_TARGETS:&str = "no targets specified (use -h for help)";
 	/// Identation for the version display
 	pub const VERSION_IDENTATION: &str = "                       ";
+	/// Identation for the description in eg. -Ss
+	pub const DESCRIPTION_IDENTATION: &str = "    ";
 	/// help/usage message
 	pub const HELP_USAGE: &str = indoc! {r#"
 		usage: pacpak <operation> [...]
@@ -81,14 +83,14 @@ mod text {
 
 
 
-/// output text in the format:
+/// output the given app in the format:
 ///		`id (name) version (branch)`
 /// (similar to `pacman -Q`)
 fn print_app_short(app: &FlatpakApp) {
 	println!("{} ({}) {} ({})", app.id.bold(), app.name, app.version.bold().green(), app.branch);
 }
 
-/// output text in the format:
+/// output the given app in the format:
 ///		`remote/id (name) version (branch)`
 /// (similar to `pacman -Ss`)
 fn print_app_long(app: &FlatpakApp, installed: bool) {
@@ -97,10 +99,10 @@ fn print_app_long(app: &FlatpakApp, installed: bool) {
 	} else { "" };
 	
 	println!("{}{}{} ({}) {} ({}) {}", app.origin.magenta().bold(), "/".bold(), app.id.bold(), app.name, app.version.bold().green(), app.branch, installed_str);
-	println!("    {}", app.description);
+	println!("{}{}", text::DESCRIPTION_IDENTATION, app.description);
 }
 
-///	output text similar to `pacman -Qi`
+///	output the given app similar to `pacman -Qi`
 fn print_app_info(app: &FlatpakApp) {
 	let mut name = String::new();
 	if !app.name.is_empty() {
@@ -136,8 +138,8 @@ fn print_app_info(app: &FlatpakApp) {
 	println!();
 }
 
-/// find the flatpak package that owns the target file  
-/// return its index (from flatpak.apps) or -1 if none was found
+/// find the installed flatpak package that owns the target file  
+/// return its index (in flatpak.apps) or -1 if none was found
 fn is_owned_by(flatpak: &mut FlatpakMeta, target: &str) -> std::io::Result<isize> {
 	let target_path = PathBuf::from(&target);
 	for index in 0..flatpak.apps.len() {
@@ -314,8 +316,10 @@ fn main() {
 		if args.info {
 			// show info for a package
 			let results = flatpak.search_apps(&targets);
-			if results.is_empty() {
+			if results.is_empty() && status.code().unwrap_or(exit_status::ERROR) > 0 {
 				eprintln!("{}", stderr_pacman);
+				exit(status.code().unwrap_or(exit_status::ERROR));
+			} else if results.is_empty() {
 				exit(status.code().unwrap_or(exit_status::ERROR));
 			}
             for index in results {
