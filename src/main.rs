@@ -26,9 +26,14 @@ const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
-/// return value when an unkown failure within this or within a called program occurs
-const EXIT_ERROR: i32 = 255;
-const EXIT_NOT_FOUND: i32 = 1;
+/// exit statuses for pacpak (often the return status of pacman is used)
+mod exit_status {
+	/// a command returns no results
+	pub const NOT_FOUND: i32 = 1;
+	/// an unkown failure within this or within a called program occurs
+	pub const ERROR: i32 = 255;
+
+}
 
 /// store (user) settings
 struct Config {
@@ -279,7 +284,7 @@ fn main() {
 		Ok(apps) => apps,
 		Err(e) => {
 			println!("Error: {}", e);
-			exit(EXIT_ERROR);
+			exit(exit_status::ERROR);
 		}
 	};
 
@@ -311,14 +316,14 @@ fn main() {
 			let results = flatpak.search_apps(&targets);
 			if results.is_empty() {
 				eprintln!("{}", stderr_pacman);
-				exit(status.code().unwrap_or(EXIT_ERROR));
+				exit(status.code().unwrap_or(exit_status::ERROR));
 			}
             for index in results {
                 match flatpak.get_app_info_full(index) {
                     Ok(app) => app,
                     Err(e) => {
                         eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
-                        exit(EXIT_ERROR);
+                        exit(exit_status::ERROR);
                     }
                 };
                 print_app_info(&flatpak.apps[index]);
@@ -327,13 +332,13 @@ fn main() {
 			// which package owns this file
 			if targets.len() == 0 {
 				eprintln!("{}", stderr_pacman);
-				exit(status.code().unwrap_or(EXIT_ERROR));
+				exit(status.code().unwrap_or(exit_status::ERROR));
 				//eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), "no targets specified");	//dev
 				//exit(1);
 			}
 			// look if already found (by pacman)
-			if status.code().unwrap_or(EXIT_ERROR) == 0 {
-				exit(status.code().unwrap_or(EXIT_ERROR));
+			if status.code().unwrap_or(exit_status::ERROR) == 0 {
+				exit(status.code().unwrap_or(exit_status::ERROR));
 			}
 			for target in &targets {
 				let idx = is_owned_by(&mut flatpak, target);
@@ -341,14 +346,14 @@ fn main() {
 					Ok(idx) => idx,
                     Err(e) => {
                         eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
-                        exit(EXIT_ERROR);
+                        exit(exit_status::ERROR);
                     }
 				};
 				if idx >= 0 {
 					println!("{}", flatpak.apps[idx as usize].extid);
 				} else {
 					eprintln!("{}", stderr_pacman);
-					exit(status.code().unwrap_or(EXIT_ERROR));
+					exit(status.code().unwrap_or(exit_status::ERROR));
 					//eprintln!("Error : {} {}", "no package owns", target);	//dev
 				}
 			}//for target
@@ -363,14 +368,14 @@ fn main() {
 			let results = flatpak.search_apps(&targets);
 			if results.is_empty() {
 				eprintln!("{}", stderr_pacman);
-				exit(status.code().unwrap_or(EXIT_ERROR));
+				exit(status.code().unwrap_or(exit_status::ERROR));
 			}
 			for index in results {
                 match flatpak.get_app_info(index) {
                     Ok(app) => app,
                     Err(e) => {
                         eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
-                        exit(EXIT_ERROR);
+                        exit(exit_status::ERROR);
                     }
                 };
                 let app : &FlatpakApp = &flatpak.apps[index];
@@ -387,12 +392,12 @@ fn main() {
 				Ok(app) => app,
 				Err(e) => {
 					eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
-					exit(EXIT_ERROR);
+					exit(exit_status::ERROR);
 				}
 			};
 			if matches.len() == 0 {
 				//eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), "no package found");
-				exit(EXIT_NOT_FOUND);
+				exit(exit_status::NOT_FOUND);
 			}
 			for app in &matches {
 				let installed = flatpak.apps.iter()
@@ -403,7 +408,7 @@ fn main() {
 		} else {
 			if targets.len() == 0 {
 				eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
-				exit(EXIT_NOT_FOUND);
+				exit(exit_status::NOT_FOUND);
 			}
 			//dev: test if it is a flatpak
 			//dev: if both is available (flat and pacman), let choose
@@ -412,7 +417,7 @@ fn main() {
 			let (stdout_pac, stderr_pac, status_pac) = pacman_run(&vec!["-Ss".to_string(), pkg]);
 			if !stdout_pac.is_empty() && status_pac == status_true {
 				status = pacman_exec(&args_pacman);
-				exit(status.code().unwrap_or(EXIT_ERROR));
+				exit(status.code().unwrap_or(exit_status::ERROR));
 			} else {
 				//else try flatpak?
 				println!("{:?}", stdout_pac);
