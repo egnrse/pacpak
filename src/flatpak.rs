@@ -305,6 +305,40 @@ impl FlatpakMeta {
 		Ok(&self.apps[idx])
 	}
 	
+	/// get a list of all files that belong to a (flatpak) app
+	/// returns a vector of paths (as string)
+	pub fn get_app_files(&mut self, idx: usize) -> io::Result<Vec<String>> {
+		let mut out:Vec<String> = Vec::new();
+		// fetch app location, if needed
+		if self.apps[idx].location.is_empty() {
+			let _ = self.get_location(idx);
+		}
+		out.push(self.apps[idx].location.clone());
+		
+		// list files/folders recursively
+		let mut rec_files = Self::rec_file_explorer(&self.apps[idx].location)?;
+		out.append(&mut rec_files);
+		
+		Ok(out)
+	}
+	/// list files/folders recursively
+	fn rec_file_explorer(path: &str) -> io::Result<Vec<String>> {
+		let mut out = Vec::new();
+		let directory = fs::read_dir(path)?;
+		for entry in directory {
+			let entry = entry?;
+			let path = entry.path();
+			let path_string = path.display().to_string();
+			out.push(path_string.clone());
+			
+			if path.is_dir() {
+				let mut rec_out = Self::rec_file_explorer(&path_string)?;
+				out.append(&mut rec_out);
+			}
+		}//for entry
+		Ok(out)
+	}
+
 	// ====== OTHER FUNCTIONS ======
 	
 	/// search for flatpaks (including not installed)

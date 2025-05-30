@@ -363,8 +363,23 @@ fn main() {
 			}//for target
 		} else if args.list {
 			// list files of a package
-			//dev: similar to above
-			println!("Operation not implemented.");
+			let matches: Vec<usize> = flatpak.search_apps(&targets);
+			if matches.len() == 0 {
+				eprintln!("{}", stderr_pacman);
+				exit(status.code().unwrap_or(exit_status::ERROR));
+			}
+			for i in matches {
+				let files = match flatpak.get_app_files(i) {
+					Ok(f) => f,
+					Err(e) => {
+                        eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
+                        exit(exit_status::ERROR);
+					}
+				};
+				for f in &files {
+					println!("{} {}", flatpak.apps[i].extid.bold(), f);
+				}
+			}
 		} else if args.search {
 			let matches: Vec<usize>  = flatpak.search_apps_desc(&targets);
 			if matches.len() == 0 {
