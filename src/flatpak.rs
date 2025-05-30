@@ -70,7 +70,7 @@ pub struct FlatpakMeta {
 impl FlatpakMeta {
 	// can be instantiated with Default::default()
 	
-	/// fetch a basic list off all apps from the flatpak cli
+	/// fetch a basic list off all (installed flatpak) apps from the flatpak cli
 	/// (overwrites the current self.apps vector)
 	pub fn get_apps(&mut self) -> io::Result<&Vec<FlatpakApp>> {
 		let flatpak_list_raw = Command::new("flatpak")
@@ -129,9 +129,41 @@ impl FlatpakMeta {
 		}
 		return out;
     }
-	
+	/// same as FlatpakMeta::search_apps(), but also searches in the description/origin
+	/// returns a vector of indexes (for self.apps)
+	pub fn search_apps_desc(&mut self, input: &Vec<&str>) -> Vec<usize> {
+		// fetch some unfilled fields (for self)
+		for i in 0..self.apps.len() {
+			let app = &self.apps[i];
+			if app.description.is_empty() || app.origin.is_empty() || app.branch.is_empty() {
+				let _ = self.get_app_info_full(i);
+			}
+		}
+
+		let mut out : Vec<usize> = Vec::new();
+		if input.len() > 0 && !input[0].is_empty() {
+			for text in input { 
+				let text = text.to_lowercase();
+				
+				for (i, app) in self.apps.iter().enumerate() {
+					if app.extid.to_lowercase().contains(&text) 
+						|| app.name.to_lowercase().contains(&text) 
+						|| app.description.to_lowercase().contains(&text)
+						|| app.origin.to_lowercase().contains(&text) {
+						if !out.contains(&i) { out.push(i); }
+						//println!("YES: {}",extid)
+					}
+				}// for (i, app)
+			}// for text
+			out.sort();
+		} else {
+			// output all indexes if no string was given
+			out = (0..self.apps.len()).collect();
+		}
+		return out;
+    }
 	/// get some basic infos about a (flatpak) app
-	pub fn get_app_info(&mut self, idx: usize) -> io::Result<&FlatpakApp> {	//dev: include usizeArr?
+	pub fn get_app_info(&mut self, idx: usize) -> io::Result<&FlatpakApp> {
 		if self.list_full.is_empty() {
 			let flatpak_list_raw = Command::new("flatpak")
 				.args(["list", "--columns=name,application,arch,branch,version,application"])

@@ -366,7 +366,17 @@ fn main() {
 			//dev: similar to above
 			println!("Operation not implemented.");
 		} else if args.search {
-			println!("Operation not implemented.");
+			let matches: Vec<usize>  = flatpak.search_apps_desc(&targets);
+			if matches.len() == 0 {
+				//eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), "no package found");	//dev
+				exit(exit_status::NOT_FOUND);
+			}
+			for i in matches {
+				let app = &flatpak.apps[i];
+				let installed = false;
+				print_app_long(&app, installed);
+			}
+			
 		} else {
 			// just -Q
 			let results = flatpak.search_apps(&targets);
@@ -389,9 +399,9 @@ fn main() {
 	
 	} else if args.sync {
 		if args.search {
+			// format: remote/print_app_short() [installed]
 			pacman_exec(&args_pacman);
-			//dev: flatpak search
-			//remote/print_app_short() [installed]
+			
 			let matches: Vec<FlatpakApp>  = match flatpak.search(targets) {
 				Ok(app) => app,
 				Err(e) => {
