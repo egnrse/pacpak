@@ -457,6 +457,7 @@ fn main() {
 		}
 
 	} else if args.remove {
+		//let (_, _, status) = pacman_run(vec!["-Ss".to_string(), pkg]);
 		pacman_exec(&args_pacman);
 		println!("Operation not implemented.");
 	} else if args.database {
