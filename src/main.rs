@@ -19,7 +19,7 @@ mod cli;
 use cli::Cli;
 // flatpak integration in flatpak.rs
 mod flatpak;
-use flatpak::{FlatpakMeta, FlatpakApp};
+use flatpak::{FlatpakMeta, FlatpakApp, flatpak_strings};
 
 
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -455,10 +455,38 @@ fn main() {
 			}
 			println!("Operation not implemented.");
 		}
-
 	} else if args.remove {
-		//let (_, _, status) = pacman_run(vec!["-Ss".to_string(), pkg]);
-		pacman_exec(&args_pacman);
+		let mut pkgs_pac: Vec<String> = Vec::new();
+		let mut pkgs_flat: Vec<String> = Vec::new();
+		let mut pkgs_both: Vec<String> = Vec::new();
+		for pkg in targets {
+			let (_, _, status_pac) = pacman_run(&vec!["-Si".to_string(), pkg.to_string()]);
+			//dev: match for flatpaks better
+			let (stdout_flat, _, status_flat) = flatpak_run(&vec!["search".to_string(), pkg.to_string()]);
+			if status_pac == status_true && (status_flat == status_true && stdout_flat == format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS)) {
+				pkgs_both.push(pkg.to_string());
+			} else if status_pac == status_true {
+				pkgs_pac.push(pkg.to_string());
+			} else if status_flat == status_true && stdout_flat != format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS) {
+				pkgs_flat.push(pkg.to_string());
+			} else {
+				//dev error
+				println!("no fitting package found");
+			}
+		}
+		//dev: TODO decide from where to install pkgs_both
+		//
+		
+		if pkgs_pac.len() > 0 {
+			let mut pac_args = vec!["-S".to_string()];
+			pac_args.append(&mut pkgs_pac);
+			pacman_exec(&pac_args);
+		}
+		if pkgs_flat.len() > 0 {
+			//dev install flatpaks
+			println!("flatpak uninstall: {:?}", pkgs_flat);
+		}
+		//pacman_exec(&args_pacman);
 		println!("Operation not implemented.");
 	} else if args.database {
 		pacman_exec(&args_pacman);
@@ -471,6 +499,8 @@ fn main() {
 		println!("Operation not implemented.");
 	} else if args.files {
 		pacman_exec(&args_pacman);
+		//let _ = flatpak.get_dependencies(0);
+		//println!("{}", flatpak.apps[0].depends);
 		println!("Operation not implemented.");
 	}
 

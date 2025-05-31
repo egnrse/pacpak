@@ -304,6 +304,22 @@ impl FlatpakMeta {
 			.into();
 		Ok(&self.apps[idx])
 	}
+
+	/// get a list of dependencies
+	/// return a vector of self.apps indexes
+	pub fn get_dependencies(&mut self, idx: usize) -> io::Result<&FlatpakApp> {
+		let depends_raw = Command::new("flatpak")
+			.args(["info", "--show-runtime", "--show-extensions", &self.apps[idx].extid])
+			.output()?;
+		let depends = String::from_utf8_lossy(&depends_raw.stdout)
+			.trim_end()
+			.into();
+		if depends == "-" {
+			println!("test");
+		}
+		self.apps[idx].depends = depends;
+		Ok(&self.apps[idx])
+	}
 	
 	/// get a list of all files that belong to a (flatpak) app
 	/// returns a vector of paths (as string)
