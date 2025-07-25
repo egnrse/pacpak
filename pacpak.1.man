@@ -1,0 +1,55 @@
+.\" Manpage for pacpak
+.TH pacpak 1 "2025-07-25"
+.SH NAME
+pacpak \- manage your flatpak applications with this pacman wrapper
+
+.SH SYNOPSIS
+.B pacpak
+\fIoperation\fR [\fIoptions\fR] [\fItarget\fR]
+
+.SH DESCRIPTION
+.B pacpak
+provides a common interface to manage arch packages and flatpak packages. Its syntax is very close to that of pacman. Flatpak packackes can be specified by id, name, branch or architecture.
+
+.SH OPERATIONS
+.TP
+.B \-S, \-\-sync
+Install or upgrade packages (always prefers pacman packages). (Options: -Ss: search but dont install packages.)
+.TP
+.B \-R, \-\-remove
+Remove all installed packages of the specified name. (Calls -Rs to pacman.)
+.TP
+.B \-Q, \-\-query
+Query information about installed packages. (Supports -Qi, -Ql, -Qo)
+.TP
+.B \-V, \-\-version
+Display version information.
+.TP
+.B \-h, \-\-help
+Show some help information.
+
+.SH OPTIONS
+Depends on the operation.
+
+.SH EXAMPLES
+.TP
+.B pacpak -S vlc
+Install the vlc package from pacman.
+.TP
+.B pacpak -R vlc
+Remove the all applications (pacman of flatpak) that are called vlc.
+.TP
+.B pacpak -Qi vlc
+Shows detailed information about the vlc package (if it is installed).
+.TP
+.B pacpak -Ss vlc
+Search for packman and flatpak packages that relate to 'vlc'.
+
+.SH SEE ALSO
+.BR pacman (8),
+.BR flatpak (1)
+.SH AUTHOR
+Written by Elia Nitsche. Source: 
+.UR
+https://github.com/egnrse/pacpak
+.UE
