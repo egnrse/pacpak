@@ -3,9 +3,7 @@
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/egnrse/pacpak/main)](https://github.com/egnrse/pacpak/commits/main)
 [![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/egnrse/pacpak?label=version)](https://github.com/egnrse/pacpak/releases)
 
-A pacman wrapper to manage installed flatpaks with pacman. This is still starting out.  
-
-(I am currently rewriting this in rust. Look at the other branch if interested.)
+A pacman wrapper to manage installed flatpaks with pacman.
 
 ## Install
 Build using cargo (in the root directory of this project):
