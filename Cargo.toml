@@ -1,0 +1,12 @@
+[package]
+name = "pacpak"
+authors = ["Elia Nitsche"]
+version = "0.0.1"
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+indoc = "2"
+colored = "3"
+chrono = "0.4"
