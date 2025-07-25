@@ -28,6 +28,7 @@ const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
 /// exit statuses for pacpak (often the return status of pacman is used)
 mod exit_status {
+	pub const SUCCESS: i32 = 0;
 	/// a command returns no results
 	pub const NOT_FOUND: i32 = 1;
 	/// an unkown failure within this or within a called program occurs
@@ -62,7 +63,11 @@ mod text {
 	pub const INSTALLED_MARKER: &str = "[installed]";
 	/// Prefix for error messages
 	pub const ERROR_PREFIX:&str = "error:";
+	pub const WARNING_PREFIX:&str = "warning:";
 	pub const NO_TARGETS:&str = "no targets specified (use -h for help)";
+	pub const NO_PACMAN_PACKAGE:&str = "no pacman target found";
+	///
+	pub const UNINSTALL_SPACER:&str = "FLATPAKs:";
 	/// Identation for the version display
 	pub const VERSION_IDENTATION: &str = "                       ";
 	/// Identation for the description in eg. -Ss
@@ -195,6 +200,18 @@ fn pacman_run(args: &Vec<String>) -> (String, String, ExitStatus) {
 	let status = child.wait()
 		.expect(&format!("{prefix} failed to wait for pacman child process", prefix = text::ERROR_PREFIX.red().bold()));
 	(stdout, stderr, status)
+}
+
+/// call flatpak with the given args (inherit buffers)  
+/// return the exit status
+fn flatpak_exec(args: &Vec<String>) -> ExitStatus {
+	Command::new("flatpak")
+		.args(args)
+		.stdin(Stdio::inherit())
+		.stdout(Stdio::inherit())
+		.stderr(Stdio::inherit())
+		.status()
+		.expect(&format!("{prefix} failed to execute flatpak", prefix = text::ERROR_PREFIX.red().bold()))
 }
 
 /// call flatpak with the given args (pipe buffers)  
@@ -413,11 +430,41 @@ fn main() {
 		}
 	
 	} else if args.sync {
+		// //dev
+		//let mut pkgs_pac: Vec<String> = Vec::new();
+		//let mut pkgs_flat: Vec<String> = Vec::new();
+		//let mut pkgs_both: Vec<String> = Vec::new();
+		//for pkg in targets {
+		//	let (_, _, status_pac) = pacman_run(&vec!["-Si".to_string(), pkg.to_string()]);
+		//	//dev: match for flatpaks better
+		//	let (stdout_flat, _, status_flat) = flatpak_run(&vec!["search".to_string(), pkg.to_string()]);
+		//	if status_pac == status_true && (status_flat == status_true && stdout_flat == format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS)) {
+		//		pkgs_both.push(pkg.to_string());
+		//	} else if status_pac == status_true {
+		//		pkgs_pac.push(pkg.to_string());
+		//	} else if status_flat == status_true && stdout_flat != format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS) {
+		//		pkgs_flat.push(pkg.to_string());
+		//	} else {
+		//		//dev error
+		//		println!("no fitting package found");
+		//	}
+		//}
+		//if pkgs_pac.len() > 0 {
+		//	let mut pac_args = vec!["-R".to_string()];
+		//	pac_args.append(&mut pkgs_pac);
+		//	pacman_exec(&pac_args);
+		//}
+		//if pkgs_flat.len() > 0 {
+		//	//dev uninstall flatpaks
+		//	println!("flatpak uninstall: {:?}", pkgs_flat);
+		//}
 		if args.search {
 			// format: remote/print_app_short() [installed]
 			pacman_exec(&args_pacman);
 			
-			let matches: Vec<FlatpakApp>  = match flatpak.search(targets) {
+			// giving flatpak search an emtpy target shows all possible packages
+			let flat_targets = if targets.len() > 0 {targets} else {vec![""]};
+			let matches: Vec<FlatpakApp>  = match flatpak.search(flat_targets) {
 				Ok(app) => app,
 				Err(e) => {
 					eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), e);
@@ -439,55 +486,83 @@ fn main() {
 				eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
 				exit(exit_status::NOT_FOUND);
 			}
-			//dev: test if it is a flatpak
-			//dev: if both is available (flat and pacman), let choose
-			//dev: for each package?
-			let pkg: String = format!("^{}$", targets[0]);
-			let (stdout_pac, stderr_pac, status_pac) = pacman_run(&vec!["-Ss".to_string(), pkg]);
-			if !stdout_pac.is_empty() && status_pac == status_true {
-				status = pacman_exec(&args_pacman);
-				exit(status.code().unwrap_or(exit_status::ERROR));
-			} else {
-				//else try flatpak?
-				println!("{:?}", stdout_pac);
-				println!("{:?}", stderr_pac);
-				println!("{:?}", status_pac);
+			for pkg in &targets {
+				let pkg_pac: String = format!("^{}$", pkg);
+				let (stdout_pac, _stderr_pac, status_pac) = pacman_run(&vec!["-Ss".to_string(), pkg_pac]);
+				if !stdout_pac.is_empty() && status_pac == status_true {
+					// install with pacman
+					let local_status = pacman_exec(&args_pacman);
+					if !local_status.success() {
+						exit(local_status.code().unwrap_or(exit_status::ERROR));
+					}
+				} else {
+					println!("{} {}: {}", text::WARNING_PREFIX.cyan().bold(), text::NO_PACMAN_PACKAGE, pkg.to_string());
+					//else try flatpak
+					//TODO: test if a package does not exist and wrap the error
+					//let (stdout_flat, stderr_flat, status_flat) = flatpak_run(&vec!["-Ss".to_string(), pkg.to_string()]);
+					let local_status = flatpak_exec(&vec!["install".to_string(), pkg.to_string()]);
+					if !local_status.success() {
+						exit(local_status.code().unwrap_or(exit_status::ERROR));
+					}
+				}
 			}
-			println!("Operation not implemented.");
+			exit(exit_status::SUCCESS);
 		}
 	} else if args.remove {
 		let mut pkgs_pac: Vec<String> = Vec::new();
-		let mut pkgs_flat: Vec<String> = Vec::new();
-		let mut pkgs_both: Vec<String> = Vec::new();
-		for pkg in targets {
-			let (_, _, status_pac) = pacman_run(&vec!["-Si".to_string(), pkg.to_string()]);
+		let mut pkgs_flat: Vec<FlatpakApp> = Vec::new();
+		
+		if targets.len() == 0 {
+			eprintln!("{} {}", text::ERROR_PREFIX.red().bold(), text::NO_TARGETS);
+			exit(exit_status::NOT_FOUND);
+		}
+
+		for pkg in targets.clone() {
+			let (_, _, status_pac) = pacman_run(&vec!["-Q".to_string(), pkg.to_string()]);
 			//dev: match for flatpaks better
-			let (stdout_flat, _, status_flat) = flatpak_run(&vec!["search".to_string(), pkg.to_string()]);
-			if status_pac == status_true && (status_flat == status_true && stdout_flat == format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS)) {
-				pkgs_both.push(pkg.to_string());
+			let found_flat = flatpak.search_apps(&vec![pkg]);
+			if status_pac == status_true && found_flat.len() > 0 {
+				pkgs_pac.push(pkg.to_string());
+				pkgs_flat.push(flatpak.apps[found_flat[0]].clone());
 			} else if status_pac == status_true {
 				pkgs_pac.push(pkg.to_string());
-			} else if status_flat == status_true && stdout_flat != format!("{}\n", flatpak_strings::SEARCH_NO_RESULTS) {
-				pkgs_flat.push(pkg.to_string());
+			} else if found_flat.len() > 0 {
+				pkgs_flat.push(flatpak.apps[found_flat[0]].clone());
 			} else {
 				//dev error
-				println!("no fitting package found");
+				println!("{} no fitting package found '{}'", text::ERROR_PREFIX.red().bold(), pkg);
 			}
 		}
-		//dev: TODO decide from where to install pkgs_both
-		//
-		
+
+		let pkgs_pac_len = pkgs_pac.len();
 		if pkgs_pac.len() > 0 {
-			let mut pac_args = vec!["-S".to_string()];
+			let mut pac_args = vec!["-Rs".to_string()];	//detect more uninstall options
 			pac_args.append(&mut pkgs_pac);
-			pacman_exec(&pac_args);
+			let local_status = pacman_exec(&pac_args);
+			if !local_status.success() {
+				exit(local_status.code().unwrap_or(exit_status::ERROR));
+			}
 		}
 		if pkgs_flat.len() > 0 {
-			//dev install flatpaks
-			println!("flatpak uninstall: {:?}", pkgs_flat);
+			let mut flat_del_pkg:String = String::new();
+			for app in &pkgs_flat {
+				let extra_string = format!("{}/{}", app.arch, app.branch);
+				let custom_extid = format!("{}/{}", app.id, extra_string.cyan());
+				flat_del_pkg = format!("{}{}  ", flat_del_pkg, custom_extid);
+			}
+
+			println!("");
+			if pkgs_pac_len > 0 { println!("{}", text::UNINSTALL_SPACER.bold()); }
+			println!("{} {}", "Removing:".bold(), flat_del_pkg);
+			
+			for app in &pkgs_flat {
+				let local_status = flatpak_exec(&vec!["uninstall".to_string(), app.extid.to_string()]);
+				if !local_status.success() {
+					exit(local_status.code().unwrap_or(exit_status::ERROR));
+				}
+			}
 		}
-		//pacman_exec(&args_pacman);
-		println!("Operation not implemented.");
+		exit(exit_status::SUCCESS);
 	} else if args.database {
 		pacman_exec(&args_pacman);
 		println!("Operation not implemented.");

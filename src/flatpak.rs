@@ -21,7 +21,7 @@ pub mod flatpak_strings {
 }
 
 /// flatpak app metadata
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FlatpakApp {
 	/// extended app id in the format: `appID/arch[itecture]/branch`
 	pub extid: String,
@@ -57,7 +57,7 @@ pub struct FlatpakApp {
 }
 
 /// flatpak meta object (houses all (app) metadata)
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct FlatpakMeta {
 	/// information for all (flatpak) apps
 	pub apps: Vec<FlatpakApp>,
@@ -307,6 +307,7 @@ impl FlatpakMeta {
 
 	/// get a list of dependencies
 	/// return a vector of self.apps indexes
+	#[deprecated]
 	pub fn get_dependencies(&mut self, idx: usize) -> io::Result<&FlatpakApp> {
 		let depends_raw = Command::new("flatpak")
 			.args(["info", "--show-runtime", "--show-extensions", &self.apps[idx].extid])
