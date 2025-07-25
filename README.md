@@ -13,32 +13,30 @@ cargo build --locked
 ```
 Install either using cargo or copy `./target/debug/pacpak` into your path manually.
 
-To install the (deprecated) bash branch, just put `pacpak.sh` into your path as `pacpak` and make it executable.  
+To install the deprecated bash branch, just put `pacpak.sh` into your path as `pacpak` and make it executable.  
 
 There might also be packages for you:
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/pacpak.svg)](https://repology.org/project/pacpak/versions)
 
 ## Usage
-Use it just like `pacman` (**Not all args are yet supported!** But the handing arguments through to pacman should still work fine)  
-(There are some settings at the top of `pacpak.sh`, that can be customized) 
+Use it just like `pacman` (**Not all args are supported!**)  
+(There are some settings that can be customized. See `struct Config`.) 
 
 
 ## TODO
 There is lots I want to add. PR/issues are very welcome.  
 to implement:  
-- Qo (file owned by what package)
-- Ql (list package files)
+- Qo (file owned by what package) - works kinda
+- Ql (list package files) - works
 - Q\[u|t|s|\] (can be upgraded|orphans|search names/descriptions)
-- S  (install)
+- S  (install) - works (prefers pacman over flatpaks)
 - S\[s|u\] (search packages|upgrade)
 - Si    (package information (from online?))
-- R\[s|n\] (remove: also dependecies|remove config files)
-- deal with fullnames of operations (eg. --query)
-- cache for `flatpak list|info` (paths?) to speed things up
+- R\[s|n\] (remove: also dependecies|remove config files) - R works (is currenly doing Rs)
+- deal with fullnames of operations (eg. --query) - works through clap (I think)
 - some more tricky Qi-fields
-
-- (and maybe rewrite this in rust or c or sth, to gain much needed speed ups [might be having to little time for that though])(on its way)  
+- cache for `flatpak list|info` (paths?) to speed things up (prob best to write a libray to directly interface with OSTree)
 
 I want to handle:
 #### Q\[ilo\]
